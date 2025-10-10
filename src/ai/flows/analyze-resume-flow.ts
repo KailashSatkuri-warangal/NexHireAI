@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A resume analysis AI agent.
@@ -9,7 +10,8 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import type { ExperienceLevel } from '@/lib/types';
+import { generate } from 'genkit/generate';
+import { googleAI } from '@genkit-ai/google-genai';
 
 const AnalyzeResumeInputSchema = z.object({
   skills: z.array(z.string()).describe("A list of the candidate's skills."),
@@ -44,21 +46,15 @@ export type AnalyzeResumeOutput = z.infer<typeof AnalyzeResumeOutputSchema>;
 
 
 export async function analyzeResume(input: AnalyzeResumeInput): Promise<AnalyzeResumeOutput> {
-  return analyzeResumeFlow(input);
-}
-
-
-const prompt = ai.definePrompt({
-  name: 'analyzeResumePrompt',
-  input: {schema: AnalyzeResumeInputSchema},
-  output: {schema: AnalyzeResumeOutputSchema},
-  prompt: `You are a helpful career coach and resume analysis expert.
+  const { candidates } = await generate({
+    model: googleAI.model('gemini-1.5-flash-latest'),
+    prompt: `You are a helpful career coach and resume analysis expert.
     Based on the provided skills, bio, and experience level, perform a detailed analysis.
 
     Candidate Information:
-    - Experience Level: {{{experienceLevel}}}
-    - Skills: {{#each skills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
-    - Bio: {{{bio}}}
+    - Experience Level: ${input.experienceLevel}
+    - Skills: ${input.skills.join(', ')}
+    - Bio: ${input.bio}
 
     Your task is to generate a concise analysis.
     - Recommend the top 3 job roles that best match the candidate's profile. Provide a match score for each.
@@ -69,19 +65,19 @@ const prompt = ai.definePrompt({
     
     Provide the output in the required JSON format.
     `,
-});
-
-const analyzeResumeFlow = ai.defineFlow(
-  {
-    name: 'analyzeResumeFlow',
-    inputSchema: AnalyzeResumeInputSchema,
-    outputSchema: AnalyzeResumeOutputSchema,
-  },
-  async (input) => {
-    const { output } = await prompt(input);
-    if (!output) {
-      throw new Error("Analysis failed to produce an output.");
+    output: {
+      format: 'json',
+      schema: AnalyzeResumeOutputSchema,
+    },
+    config: {
+      temperature: 0.3,
     }
-    return output;
+  });
+
+  const analysisResult = candidates[0].output?.json;
+
+  if (!analysisResult) {
+    throw new Error("Analysis failed to produce a valid result.");
   }
-);
+  return analysisResult;
+}
