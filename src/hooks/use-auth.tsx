@@ -7,8 +7,17 @@ import {
   useEffect,
   ReactNode,
 } from 'react';
-import { User } from '@/lib/types';
-import { mockLogin, mockSignup, mockLogout, mockGetUser } from '@/lib/auth';
+import {
+  User as FirebaseUser,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+} from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+
+import { User, Role } from '@/lib/types';
+import { initializeFirebase } from '@/firebase';
 import type { SignupData } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 
@@ -26,34 +35,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  const { auth, firestore } = initializeFirebase();
 
   useEffect(() => {
-    const initializeAuth = async () => {
-      try {
-        const currentUser = await mockGetUser();
-        setUser(currentUser);
-      } catch (error) {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+      if (firebaseUser) {
+        const userDoc = await getDoc(doc(firestore, 'users', firebaseUser.uid));
+        if (userDoc.exists()) {
+          setUser({ id: firebaseUser.uid, ...userDoc.data() } as User);
+        } else {
+          // Handle case where user exists in Auth but not Firestore
+          setUser(null);
+        }
+      } else {
         setUser(null);
-      } finally {
-        setIsLoading(false);
       }
-    };
-    initializeAuth();
-  }, []);
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [auth, firestore]);
 
   const login = async (email: string, password: string) => {
-    const loggedInUser = await mockLogin(email, password);
-    setUser(loggedInUser);
+    await signInWithEmailAndPassword(auth, email, password);
   };
 
   const signup = async (signupData: SignupData) => {
-    await mockSignup(signupData);
-    // After signup, user needs to login. We don't automatically log them in.
+    const { name, email, password, role } = signupData;
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const firebaseUser = userCredential.user;
+
+    const newUser: Omit<User, 'id'> = {
+      name,
+      email,
+      role,
+      avatarUrl: `https://picsum.photos/seed/${firebaseUser.uid}/200`,
+    };
+
+    await setDoc(doc(firestore, 'users', firebaseUser.uid), newUser);
   };
 
   const logout = async () => {
-    await mockLogout();
-    setUser(null);
+    await signOut(auth);
     router.push('/');
   };
 
