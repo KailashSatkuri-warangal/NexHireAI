@@ -88,8 +88,8 @@ export function ProfileCard({ profileData, onProfileUpdate, onRunAnalysis, onFli
         </div>
 
         {/* Edit Face */}
-        <div className="absolute w-full h-full backface-hidden rotate-y-180">
-          <div className="w-full rounded-3xl border border-white/10 bg-card/60 p-6 shadow-2xl backdrop-blur-xl dark:border-white/20 dark:bg-black/20">
+        <div className="absolute w-full h-full backface-hidden [transform:rotateY(180deg)]">
+          <div className="w-full h-full rounded-3xl border border-white/10 bg-card/60 p-6 shadow-2xl backdrop-blur-xl dark:border-white/20 dark:bg-black/20">
             <h2 className="text-2xl font-bold mb-6">Edit Profile</h2>
             <EditProfileForm
               profileData={profileData}
