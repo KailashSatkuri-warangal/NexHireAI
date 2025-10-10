@@ -36,6 +36,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { auth, firestore } = useFirebase();
   const { user: firebaseUser, isUserLoading: isFirebaseUserLoading } = useFirebaseUser();
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useEffect(() => {
     const fetchUserRole = async () => {
@@ -53,8 +58,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 avatarUrl: firebaseUser.photoURL || `https://i.pravatar.cc/150?u=${firebaseUser.uid}`
               });
             } else {
-              // User is in Auth, but no doc in Firestore. This can happen during signup.
-              // We can wait for the signup flow to complete the doc creation.
               setUser(null);
             }
         } catch (error) {
@@ -71,13 +74,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     fetchUserRole();
   }, [firebaseUser, firestore, isFirebaseUserLoading]);
-
-  useEffect(() => {
-    const publicRoutes = ['/', '/signup'];
-    if (!loading && !user && !publicRoutes.includes(pathname)) {
-        router.push('/');
-    }
-  }, [user, loading, pathname, router]);
 
   const login = useCallback(async (email: string, password: string) => {
     if (!auth) throw new Error("Auth service not available");
@@ -134,8 +130,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value = { user, login, signup, logout, loading: loading || isFirebaseUserLoading };
 
-  // Always render children to prevent hydration mismatch.
-  // The useEffect hook will handle redirecting away from protected routes.
+  if (!isClient) {
+    return null;
+  }
+
   return (
     <AuthContext.Provider value={value}>
       {children}
