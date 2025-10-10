@@ -1,4 +1,3 @@
-
 'use client';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
@@ -7,16 +6,17 @@ import { Button } from '@/components/ui/button';
 import { EditProfileForm } from './EditProfileForm';
 import { ViewProfile } from './ViewProfile';
 import type { User } from '@/lib/types';
-import { BrainCircuit, Pencil } from 'lucide-react';
+import { BrainCircuit, Pencil, ArrowRight } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
 
 interface ProfileCardProps {
   profileData: User;
   onProfileUpdate: (data: Partial<User>) => Promise<void>;
   onRunAnalysis: () => Promise<void>;
+  onFlip: () => void;
 }
 
-export function ProfileCard({ profileData, onProfileUpdate, onRunAnalysis }: ProfileCardProps) {
+export function ProfileCard({ profileData, onProfileUpdate, onRunAnalysis, onFlip }: ProfileCardProps) {
   const [isEditing, setIsEditing] = useState(false);
 
   const handleSave = async (updatedData: Partial<User>) => {
@@ -38,8 +38,9 @@ export function ProfileCard({ profileData, onProfileUpdate, onRunAnalysis }: Pro
       // Mock upload and analysis trigger.
       console.log('Resume uploaded:', file.name);
       await onProfileUpdate({ resumeUrl: `/resumes/${file.name}` });
-      // The analysis is now triggered by a dedicated button
   }
+
+  const hasAnalysis = !!profileData.analysis?.summary;
 
   return (
     <div className="relative perspective w-full">
@@ -73,9 +74,13 @@ export function ProfileCard({ profileData, onProfileUpdate, onRunAnalysis }: Pro
               </div>
               <div className="md:ml-auto flex flex-col sm:flex-row gap-2">
                 <Button onClick={() => setIsEditing(true)} variant="outline">Edit Profile</Button>
-                {profileData.role === 'candidate' && 
-                    <Button onClick={onRunAnalysis}><BrainCircuit className="mr-2 h-4 w-4" /> Analyze Profile</Button>
-                }
+                {profileData.role === 'candidate' && (
+                  hasAnalysis ? (
+                      <Button onClick={onFlip}>View AI Insights <ArrowRight className="ml-2 h-4 w-4" /></Button>
+                  ) : (
+                      <Button onClick={onRunAnalysis}><BrainCircuit className="mr-2 h-4 w-4" /> Analyze Profile</Button>
+                  )
+                )}
               </div>
             </div>
             <ViewProfile profileData={profileData} onResumeUpload={handleResumeUpload} />

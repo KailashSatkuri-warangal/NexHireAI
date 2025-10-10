@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -21,6 +20,7 @@ export default function ProfilePage() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const { firestore } = initializeFirebase();
+  const [isFlipped, setIsFlipped] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -34,7 +34,11 @@ export default function ProfilePage() {
         const userDocRef = doc(firestore, 'users', user.id);
         const docSnap = await getDoc(userDocRef);
         if (docSnap.exists()) {
-          setProfileData({ id: docSnap.id, ...docSnap.data() } as UserType);
+          const data = { id: docSnap.id, ...docSnap.data() } as UserType;
+          setProfileData(data);
+          if (data.analysis?.summary) {
+            setIsFlipped(true); // Flip to analysis if it exists
+          }
         }
       } catch (error) {
         console.error("Error fetching profile:", error);
@@ -91,6 +95,7 @@ export default function ProfilePage() {
                 summary: analysisResult
             }
         });
+        setIsFlipped(true); // Flip to show the new analysis
 
       } catch(error) {
          console.error("Error running analysis:", error);
@@ -101,44 +106,58 @@ export default function ProfilePage() {
   if (isLoading || authLoading || !profileData) {
     return <ProfileSkeleton />;
   }
-  
-  const hasAnalysis = !!profileData.analysis?.summary;
 
   return (
     <div className="relative min-h-[calc(100vh-5rem)] w-full bg-secondary">
-        <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.1),rgba(255,255,255,0))]"></div>
-        
-        <div className="container mx-auto px-4 py-8 md:px-6">
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start"
-            >
-                <div className={hasAnalysis ? "lg:col-span-2" : "lg:col-span-3"}>
-                    <ProfileCard 
-                        profileData={profileData} 
-                        onProfileUpdate={handleProfileUpdate} 
-                        onRunAnalysis={runAnalysis}
-                    />
+      <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.1),rgba(255,255,255,0))]"></div>
+      
+      <div className="container mx-auto px-4 py-8 md:px-6 flex items-center justify-center">
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="w-full max-w-4xl"
+            style={{ perspective: '1200px' }}
+        >
+          <motion.div 
+            className="relative w-full h-full transition-transform duration-700"
+            style={{ transformStyle: 'preserve-3d' }}
+            animate={{ rotateY: isFlipped ? 180 : 0 }}
+          >
+            {/* Front of card: Profile View/Edit */}
+            <div className="absolute w-full h-full backface-hidden">
+                <ProfileCard 
+                    profileData={profileData} 
+                    onProfileUpdate={handleProfileUpdate} 
+                    onRunAnalysis={runAnalysis}
+                    onFlip={() => setIsFlipped(true)}
+                />
+            </div>
+
+            {/* Back of card: Personal Understanding */}
+            <div className="absolute w-full h-full backface-hidden" style={{ rotateY: 180 }}>
+              {profileData.analysis?.summary ? (
+                <PersonalUnderstanding 
+                    analysis={profileData.analysis.summary} 
+                    onFlip={() => setIsFlipped(false)}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full w-full rounded-3xl bg-card p-6">
+                    <p>No analysis data available. Run the analysis to see insights.</p>
                 </div>
-                {hasAnalysis && (
-                  <div className="lg:col-span-1">
-                      <PersonalUnderstanding analysis={profileData.analysis?.summary} />
-                  </div>
-                )}
-            </motion.div>
-        </div>
+              )}
+            </div>
+          </motion.div>
+        </motion.div>
+      </div>
     </div>
   );
 }
 
 const ProfileSkeleton = () => (
     <div className="container mx-auto px-4 py-12 md:px-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-3">
-                <Skeleton className="h-[400px] w-full rounded-3xl" />
-            </div>
-        </div>
+      <div className="max-w-4xl mx-auto">
+        <Skeleton className="h-[500px] w-full rounded-3xl" />
+      </div>
     </div>
 );
