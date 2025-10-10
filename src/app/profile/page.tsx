@@ -5,13 +5,16 @@ import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/hooks/use-toast';
 import type { User as UserType, AnalysisSummary } from '@/lib/types';
 import { ProfileCard } from '@/components/profile/ProfileCard';
 import { PersonalUnderstanding } from '@/components/profile/PersonalUnderstanding';
+import { EditProfileForm } from '@/components/profile/EditProfileForm';
 import { Skeleton } from '@/components/ui/skeleton';
 import { analyzeResume } from '@/ai/flows/analyze-resume-flow';
+
+type ViewState = 'profile' | 'analysis' | 'edit';
 
 export default function ProfilePage() {
   const { user, isLoading: authLoading } = useAuth();
@@ -20,8 +23,8 @@ export default function ProfilePage() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const { firestore } = initializeFirebase();
-  const [view, setView] = useState<'profile' | 'analysis'>('profile');
-  const [isEditing, setIsEditing] = useState(false);
+  const [view, setView] = useState<ViewState>('profile');
+  const [rotation, setRotation] = useState({ y: 0, direction: 1 });
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -35,22 +38,19 @@ export default function ProfilePage() {
       try {
         const userDocRef = doc(firestore, 'users', user.id);
         const docSnap = await getDoc(userDocRef);
+        let data: UserType;
         if (docSnap.exists()) {
-          const data = { id: docSnap.id, ...docSnap.data() } as UserType;
-          setProfileData(data);
-           if (data.analysis?.summary) {
-            setView('analysis');
-          }
+          data = { id: docSnap.id, ...docSnap.data() } as UserType;
         } else {
-          const basicProfile: UserType = {
+          data = {
             id: user.id,
             email: user.email,
             name: user.name || "New User",
             role: 'candidate', 
           };
-          await setDoc(doc(firestore, "users", user.id), basicProfile);
-          setProfileData(basicProfile);
+          await setDoc(doc(firestore, "users", user.id), data);
         }
+        setProfileData(data);
       } catch (error) {
         console.error("Error fetching profile:", error);
         toast({ title: "Error", description: "Could not fetch profile.", variant: "destructive" });
@@ -76,6 +76,7 @@ export default function ProfilePage() {
         
         await setDoc(userDocRef, updatedData, { merge: true });
         toast({ title: "Success", description: "Profile updated successfully!" });
+        changeView('profile');
     } catch (error) {
         console.error("Error updating profile:", error);
         setProfileData(profileData);
@@ -110,7 +111,7 @@ export default function ProfilePage() {
                 summary: analysisResult
             }
         });
-        setView('analysis');
+        changeView('analysis');
 
       } catch(error) {
          console.error("Error running analysis:", error);
@@ -118,50 +119,111 @@ export default function ProfilePage() {
       }
   }
 
+  const changeView = (newView: ViewState) => {
+    if (newView === view) return;
+    
+    let newY = rotation.y;
+    let newDirection = rotation.direction;
+    
+    if (newView === 'edit') {
+        newDirection = -1; // Flip left
+        newY = rotation.y + 180 * newDirection;
+    } else if (newView === 'analysis') {
+        newDirection = 1; // Flip right
+        newY = rotation.y + 180 * newDirection;
+    } else { // Back to profile
+        newY = (rotation.y % 360 === 0) ? rotation.y + 180 * rotation.direction : Math.round(rotation.y / 360) * 360;
+    }
+
+    setRotation({ y: newY, direction: newDirection });
+    setView(newView);
+  };
+
   if (isLoading || authLoading || !profileData) {
     return <ProfileSkeleton />;
   }
+  
+  const cardHeight = view === 'edit' ? 'auto' : '650px';
+  const minCardHeight = view === 'edit' ? '80vh' : '650px';
+
 
   return (
-    <div className="relative min-h-[calc(100vh-5rem)] w-full bg-secondary">
+    <div className="relative min-h-[calc(100vh-5rem)] w-full bg-secondary py-8">
       <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.1),rgba(255,255,255,0))]"></div>
       
-      <div className="container mx-auto px-4 py-8 md:px-6 flex items-center justify-center">
-        <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="w-full max-w-4xl"
-        >
-          {view === 'profile' ? (
-              <ProfileCard 
-                  profileData={profileData} 
-                  onProfileUpdate={handleProfileUpdate} 
-                  onRunAnalysis={runAnalysis}
-                  onFlip={() => setView('analysis')}
-                  isEditing={isEditing}
-                  setIsEditing={setIsEditing}
-              />
-          ) : (
-             <>
-              {profileData.analysis?.summary ? (
-                <PersonalUnderstanding 
-                    analysis={profileData.analysis.summary} 
-                    onFlip={() => setView('profile')}
-                />
-              ) : (
-                 <ProfileCard 
-                  profileData={profileData} 
-                  onProfileUpdate={handleProfileUpdate} 
-                  onRunAnalysis={runAnalysis}
-                  onFlip={() => setView('analysis')}
-                  isEditing={isEditing}
-                  setIsEditing={setIsEditing}
-              />
-              )}
-            </>
-          )}
-        </motion.div>
+      <div className="container mx-auto px-4 md:px-6 flex items-center justify-center">
+         <div className="w-full max-w-4xl" style={{ perspective: '1200px' }}>
+            <motion.div
+                className="relative preserve-3d"
+                style={{ height: cardHeight, minHeight: minCardHeight, width: '100%' }}
+                animate={{ rotateY: rotation.y }}
+                transition={{ duration: 0.7, ease: 'easeInOut' }}
+            >
+                {/* Profile Face (Front) */}
+                <div className="absolute w-full h-full backface-hidden" style={{ rotateY: '0deg' }}>
+                    <AnimatePresence>
+                        {view === 'profile' && (
+                             <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.3 }}
+                            >
+                                <ProfileCard 
+                                    profileData={profileData} 
+                                    onRunAnalysis={runAnalysis}
+                                    onEdit={() => changeView('edit')}
+                                    onViewAnalysis={() => changeView('analysis')}
+                                    onAvatarUpload={(file) => handleProfileUpdate({ avatarUrl: URL.createObjectURL(file)})} // simplified for UI
+                                />
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+
+                 {/* Edit Face */}
+                <div className="absolute w-full h-full backface-hidden" style={{ transform: 'rotateY(180deg)' }}>
+                    <AnimatePresence>
+                    {view === 'edit' && (
+                        <motion.div
+                            className="w-full h-full rounded-3xl border border-white/10 bg-card/80 p-6 shadow-2xl backdrop-blur-xl dark:border-white/20 dark:bg-black/40"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.3, delay: 0.35 }}
+                        >
+                            <h2 className="text-2xl font-bold mb-6">Edit Profile</h2>
+                            <EditProfileForm 
+                                profileData={profileData} 
+                                onSave={handleProfileUpdate} 
+                                onCancel={() => changeView('profile')} 
+                            />
+                        </motion.div>
+                    )}
+                    </AnimatePresence>
+                </div>
+
+
+                {/* Analysis Face */}
+                <div className="absolute w-full h-full backface-hidden" style={{ transform: 'rotateY(-180deg)' }}>
+                     <AnimatePresence>
+                        {view === 'analysis' && (
+                             <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.3, delay: 0.35 }}
+                            >
+                                <PersonalUnderstanding 
+                                    analysis={profileData.analysis?.summary} 
+                                    onFlip={() => changeView('profile')}
+                                />
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+            </motion.div>
+        </div>
       </div>
     </div>
   );
@@ -170,7 +232,7 @@ export default function ProfilePage() {
 const ProfileSkeleton = () => (
     <div className="container mx-auto px-4 py-12 md:px-6">
       <div className="max-w-4xl mx-auto">
-        <Skeleton className="h-[500px] w-full rounded-3xl" />
+        <Skeleton className="h-[650px] w-full rounded-3xl" />
       </div>
     </div>
 );
