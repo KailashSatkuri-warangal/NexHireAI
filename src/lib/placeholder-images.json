@@ -1,3 +1,52 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "avatar1",
+      "description": "Avatar for Alex Doe",
+      "imageUrl": "https://picsum.photos/seed/1/200/200",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "avatar2",
+      "description": "Avatar for Brenda Smith",
+      "imageUrl": "https://picsum.photos/seed/2/200/200",
+      "imageHint": "woman portrait"
+    },
+    {
+      "id": "avatar3",
+      "description": "Avatar for Charles Brown",
+      "imageUrl": "https://picsum.photos/seed/3/200/200",
+      "imageHint": "man portrait"
+    },
+    {
+      "id": "avatar4",
+      "description": "Avatar for Dana Scully",
+      "imageUrl": "https://picsum.photos/seed/4/200/200",
+      "imageHint": "professional woman"
+    },
+    {
+      "id": "avatar5",
+      "description": "Avatar for Fox Mulder",
+      "imageUrl": "https://picsum.photos/seed/5/200/200",
+      "imageHint": "professional man"
+    },
+    {
+      "id": "avatar6",
+      "description": "Avatar for Walter Skinner",
+      "imageUrl": "https://picsum.photos/seed/6/200/200",
+      "imageHint": "older man"
+    },
+    {
+      "id": "avatar7",
+      "description": "Avatar for Monica Reyes",
+      "imageUrl": "https://picsum.photos/seed/7/200/200",
+      "imageHint": "smiling woman"
+    },
+    {
+      "id": "avatar8",
+      "description": "Avatar for John Doggett",
+      "imageUrl": "https://picsum.photos/seed/8/200/200",
+      "imageHint": "serious man"
+    }
+  ]
 }
