@@ -14,7 +14,7 @@ export default function AuthPage() {
   const [isLoginMode, setIsLoginMode] = useState(true);
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-background">
+    <div className="relative min-h-screen w-full overflow-hidden bg-secondary">
       {/* Animated Gradient Background */}
       <div className="absolute inset-0 -z-10">
         <motion.div
@@ -26,7 +26,7 @@ export default function AuthPage() {
             ease: 'linear',
             repeat: Infinity,
           }}
-          className="h-full w-full bg-[length:200%_200%] bg-gradient-to-br from-primary/30 via-accent/30 to-background"
+          className="h-full w-full bg-[length:200%_200%] bg-gradient-to-br from-primary/30 via-accent/30 to-secondary"
         />
         <div className="absolute inset-0 bg-[url(/grid.svg)] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]"></div>
       </div>
@@ -53,7 +53,7 @@ export default function AuthPage() {
                     exit={{ opacity: 0, y: -20 }}
                     transition={{ duration: 0.5, delay: 0.2 }}
                 >
-                    <h2 className="text-5xl font-bold leading-tight text-white">
+                    <h2 className="text-5xl font-bold leading-tight text-foreground">
                         {isLoginMode ? "Your Career Journey Starts Here." : "Recruit the best. Get hired faster."}
                     </h2>
                     <p className="mt-4 text-lg text-muted-foreground">
@@ -117,15 +117,15 @@ function LoginForm({ setIsLoginMode }: { setIsLoginMode: (isLogin: boolean) => v
             className="flex flex-col h-full"
         >
             <div className="grid gap-2 text-center mb-10">
-              <h1 className="text-3xl font-bold text-white">Welcome Back</h1>
+              <h1 className="text-3xl font-bold text-foreground">Welcome Back</h1>
               <p className="text-balance text-muted-foreground">
                 Enter your credentials to access your account.
               </p>
             </div>
             
             <div className="grid gap-6">
-              <AuthInput id="email" type="email" placeholder="m@example.com" icon={<Mail />} />
-              <AuthInput id="password" type="password" placeholder="Password" icon={<KeyRound />} />
+              <AuthInput id="email" type="email" placeholder="m@example.com" icon={<Mail className="h-4 w-4" />} />
+              <AuthInput id="password" type="password" placeholder="Password" icon={<KeyRound className="h-4 w-4" />} />
             </div>
 
             <div className="mt-4 text-right">
@@ -164,21 +164,21 @@ function SignupForm({ setIsLoginMode }: { setIsLoginMode: (isLogin: boolean) => 
             className="flex flex-col h-full"
           >
             <div className="grid gap-2 text-center mb-6">
-              <h1 className="text-3xl font-bold text-white">Create an account</h1>
+              <h1 className="text-3xl font-bold text-foreground">Create an account</h1>
               <p className="text-balance text-muted-foreground">
                 Enter your info to join the future of hiring.
               </p>
             </div>
             <div className="grid gap-4">
-                <AuthInput id="name" placeholder="John Doe" icon={<UserCircle />} />
-                <AuthInput id="email" type="email" placeholder="m@example.com" icon={<Mail />} />
-                <AuthInput id="password" type="password" placeholder="Password" icon={<KeyRound />} />
+                <AuthInput id="name" placeholder="John Doe" icon={<UserCircle className="h-4 w-4" />} />
+                <AuthInput id="email" type="email" placeholder="m@example.com" icon={<Mail className="h-4 w-4" />} />
+                <AuthInput id="password" type="password" placeholder="Password" icon={<KeyRound className="h-4 w-4" />} />
                 
                 <div className="grid gap-2 pt-2">
                   <Label className="text-muted-foreground text-sm">What best describes you?</Label>
                   <RadioGroup defaultValue="candidate" className="grid grid-cols-2 gap-4">
-                    <RoleOption value="candidate" icon={<User />} label="Candidate" />
-                    <RoleOption value="recruiter" icon={<Briefcase />} label="Recruiter" />
+                    <RoleOption value="candidate" icon={<User className="h-6 w-6" />} label="Candidate" />
+                    <RoleOption value="recruiter" icon={<Briefcase className="h-6 w-6" />} label="Recruiter" />
                   </RadioGroup>
                 </div>
             </div>
@@ -207,7 +207,7 @@ const AuthInput = ({ id, type = 'text', placeholder, icon }: { id: string; type?
       <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">
         {icon}
       </div>
-      <Input id={id} type={type} placeholder={placeholder} required className="pl-10 h-12 bg-black/20 border-white/20 focus:bg-black/30 focus-visible:ring-offset-0 focus-visible:ring-accent" />
+      <Input id={id} type={type} placeholder={placeholder} required className="pl-10 h-12 bg-black/20 border-white/20 focus:bg-black/30 transition-shadow duration-300 focus-visible:ring-primary focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:shadow-[0_0_15px_rgba(var(--accent-rgb),0.5)]" />
     </div>
 );
 
@@ -215,7 +215,7 @@ const AuthButton = ({ children, variant = 'default' }: { children: React.ReactNo
     <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
         <Button 
             type="submit" 
-            className="w-full h-12 text-base transition-shadow duration-300 hover:shadow-accent/50 hover:shadow-[0_0_15px_rgba(var(--accent-rgb),0.4)]"
+            className="w-full h-12 text-base transition-shadow duration-300 hover:shadow-primary/50 hover:shadow-[0_0_15px_rgba(var(--accent-rgb),0.4)]"
             variant={variant}
         >
             {children}
@@ -224,14 +224,14 @@ const AuthButton = ({ children, variant = 'default' }: { children: React.ReactNo
 );
 
 const RoleOption = ({ value, icon, label }: { value: string; icon: React.ReactNode; label: string }) => (
-    <motion.div whileTap={{ scale: 0.95 }}>
+    <motion.div whileTap={{ scale: 0.95 }} className="[transform-style:preserve-3d]">
       <RadioGroupItem value={value} id={value} className="peer sr-only" />
       <Label
         htmlFor={value}
-        className="flex h-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-white/20 bg-black/30 p-4 shadow-lg transition-all hover:bg-black/40 peer-data-[state=checked]:border-accent peer-data-[state=checked]:shadow-accent/30 peer-data-[state=checked]:shadow-xl"
+        className="flex h-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-white/20 bg-black/30 p-4 shadow-lg transition-all hover:bg-black/40 hover:shadow-primary/30 peer-data-[state=checked]:border-primary peer-data-[state=checked]:shadow-primary/50 peer-data-[state=checked]:shadow-xl [transform:translateZ(0)]"
       >
-        <div className="mb-2 text-accent">{icon}</div>
-        <span className="font-semibold text-white">{label}</span>
+        <div className="mb-2 text-primary [transform:translateZ(20px)]">{icon}</div>
+        <span className="font-semibold text-foreground [transform:translateZ(10px)]">{label}</span>
       </Label>
     </motion.div>
 );
