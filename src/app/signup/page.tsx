@@ -6,32 +6,35 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useAuth } from '@/hooks/use-auth';
 import { Logo } from '@/components/logo';
 import Link from 'next/link';
+import { useAuth } from '@/hooks/use-auth';
+import type { UserRole } from '@/lib/types';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 
-
-export default function LoginPage() {
+export default function SignupPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { signup } = useAuth();
   const { toast } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [role, setRole] = useState<UserRole>('candidate');
 
-  const handleLogin = async () => {
+  const handleSignup = async () => {
     try {
-      await login(email, password);
+      await signup(email, password, displayName, role);
       toast({
-        title: "Login Successful",
-        description: "Welcome back!",
+        title: "Signup Successful",
+        description: "Welcome to NexHireAI!",
       });
       router.push('/dashboard');
     } catch (error: any) {
-      console.error("Login failed:", error);
+      console.error("Signup failed:", error);
       toast({
         variant: "destructive",
-        title: "Login Failed",
+        title: "Signup Failed",
         description: error.message || "An unexpected error occurred.",
       });
     }
@@ -42,11 +45,15 @@ export default function LoginPage() {
       <Card className="w-full max-w-sm bg-card/60 backdrop-blur-lg border-border/30">
         <CardHeader className="items-center text-center">
           <Logo className="h-12 w-12 text-primary mb-4" />
-          <CardTitle className="text-2xl font-bold">Welcome to NexHireAI</CardTitle>
-          <CardDescription>Sign in to continue to your dashboard.</CardDescription>
+          <CardTitle className="text-2xl font-bold">Create an Account</CardTitle>
+          <CardDescription>Join NexHireAI and land your dream job.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="displayName">Full Name</Label>
+              <Input id="displayName" type="text" placeholder="John Doe" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input id="email" type="email" placeholder="user@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -55,16 +62,29 @@ export default function LoginPage() {
               <Label htmlFor="password">Password</Label>
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
             </div>
+             <div className="space-y-2">
+              <Label htmlFor="role">Role</Label>
+              <Select value={role} onValueChange={(value) => setRole(value as UserRole)}>
+                <SelectTrigger id="role">
+                  <SelectValue placeholder="Select your role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="candidate">Candidate</SelectItem>
+                  <SelectItem value="recruiter">Recruiter</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div className="mt-6">
-             <Button onClick={handleLogin} className="w-full">
-              Sign In
+            <Button onClick={handleSignup} className="w-full">
+              Sign Up
             </Button>
           </div>
           <div className="mt-4 text-center text-sm">
-            Don't have an account?{' '}
-            <Link href="/signup" className="underline">
-              Sign up
+            Already have an account?{' '}
+            <Link href="/" className="underline">
+              Sign in
             </Link>
           </div>
         </CardContent>

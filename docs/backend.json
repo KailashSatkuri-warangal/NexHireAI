@@ -6,10 +6,6 @@
       "type": "object",
       "description": "Represents a user within the NexHireAI platform.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the user."
-        },
         "email": {
           "type": "string",
           "description": "User's email address.",
@@ -21,7 +17,8 @@
         },
         "role": {
           "type": "string",
-          "description": "The role of the user (Candidate, Recruiter, Admin)."
+          "description": "The role of the user (Candidate, Recruiter, Admin).",
+          "enum": ["candidate", "recruiter", "admin"]
         },
         "xp": {
           "type": "number",
@@ -36,7 +33,6 @@
         }
       },
       "required": [
-        "id",
         "email",
         "displayName",
         "role"
@@ -206,8 +202,7 @@
   },
   "auth": {
     "providers": [
-      "password",
-      "anonymous"
+      "email-password"
     ]
   },
   "firestore": {
@@ -219,7 +214,7 @@
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Stores user profiles.  Path-based ownership ensures only the user can access their own profile.",
+          "description": "Stores user profiles, including their role. Publicly readable, but only the user can write to their own profile.",
           "params": [
             {
               "name": "userId",
@@ -313,6 +308,6 @@
         }
       }
     ],
-    "reasoning": "The Firestore structure is designed to ensure security, scalability, and ease of debugging, adhering to the principles of Authorization Independence, Clarity of Intent, DBAC, and QAPs.  \n\nAuthorization Independence is achieved through denormalization. For example, if access to Assessments, Questions, Submissions or LearningRoadmaps depended on user roles, this data would be copied into each document within those collections.  However, based on the data provided, all subcollections are under a user document and authorization is granted via path based ownership.\n\nStructural Segregation is used to keep documents with similar access requirements in the same collection. For example, all user profiles are stored in `/users/{userId}`.\n\nAccess Modeling relies on path-based ownership. All entities directly related to a user (Assessments, Submissions, LearningRoadmaps) are stored as subcollections under the `/users/{userId}` path.  This ensures that only the user has access to their own data.  The Admin role is not modeled as it is external to the data models provided."
+    "reasoning": "The Firestore structure is designed to ensure security, scalability, and ease of debugging. The user's role is stored in the `/users/{userId}` document, which is the source of truth for authorization. Other collections are nested under the user to enforce ownership-based access control."
   }
 }

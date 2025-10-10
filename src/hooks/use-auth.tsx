@@ -1,14 +1,16 @@
-import { createContext, useContext } from 'react';
-import type { UserRole, User } from '@/lib/types';
+import { useContext } from 'react';
+import type { UserRole, AppUser } from '@/lib/types';
+import { AuthContext } from '@/components/auth-provider';
+
 
 interface AuthContextType {
-  user: User | null;
-  login: (role: UserRole) => void;
+  user: AppUser | null;
+  login: (email: string, password: string) => Promise<void>;
+  signup: (email: string, password: string, displayName: string, role: UserRole) => Promise<void>;
   logout: () => void;
   loading: boolean;
 }
 
-export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function useAuth() {
   const context = useContext(AuthContext);

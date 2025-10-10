@@ -1,64 +1,105 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import { AuthContext } from '@/hooks/use-auth';
-import type { UserRole, User } from '@/lib/types';
-import { mockUsers } from '@/lib/placeholder-data';
+import React, { useState, useEffect, useCallback, createContext } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import type { UserRole, AppUser } from '@/lib/types';
+import {
+  useFirebase,
+  useUser as useFirebaseUser,
+} from '@/firebase';
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  updateProfile,
+} from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+
+interface AuthContextType {
+  user: AppUser | null;
+  login: (email: string, password: string) => Promise<void>;
+  signup: (email: string, password: string, displayName: string, role: UserRole) => Promise<void>;
+  logout: () => void;
+  loading: boolean;
+}
+
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
+  const { auth, firestore } = useFirebase();
+  const { user: firebaseUser, isUserLoading: isFirebaseUserLoading } = useFirebaseUser();
 
   useEffect(() => {
-    // This effect runs only on the client, after initial render.
-    try {
-      const storedRole = localStorage.getItem('userRole') as UserRole | null;
-      if (storedRole) {
-        const currentUser = Object.values(mockUsers).find(u => u.role === storedRole);
-        setUser(currentUser || null);
+    const fetchUserRole = async () => {
+      if (firebaseUser && firestore) {
+        const userDocRef = doc(firestore, 'users', firebaseUser.uid);
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists()) {
+          setUser({
+            id: firebaseUser.uid,
+            email: firebaseUser.email || '',
+            name: firebaseUser.displayName || 'No Name',
+            role: userDoc.data().role as UserRole,
+            avatarUrl: firebaseUser.photoURL || `https://i.pravatar.cc/150?u=${firebaseUser.uid}`
+          });
+        } else {
+          // Handle case where user exists in Auth but not Firestore
+           setUser(null); 
+        }
+      } else {
+        setUser(null);
       }
-    } catch (error) {
-      console.error("Could not access localStorage", error);
-    } finally {
       setLoading(false);
-    }
-  }, []);
+    };
 
+    fetchUserRole();
+  }, [firebaseUser, firestore]);
+  
   useEffect(() => {
-    if (!loading && !user && pathname !== '/') {
+    const publicRoutes = ['/', '/signup'];
+    if (!loading && !user && !publicRoutes.includes(pathname)) {
         router.push('/');
     }
   }, [user, loading, pathname, router]);
 
+  const login = useCallback(async (email: string, password: string) => {
+    if (!auth) throw new Error("Auth service not available");
+    await signInWithEmailAndPassword(auth, email, password);
+  }, [auth]);
 
-  const login = useCallback((role: UserRole) => {
-    const currentUser = Object.values(mockUsers).find(u => u.role === role);
-    if (currentUser) {
-      setUser(currentUser);
-      try {
-        localStorage.setItem('userRole', role);
-      } catch (error) {
-        console.error("Could not access localStorage", error);
-      }
-    }
-  }, []);
+  const signup = useCallback(async (email: string, password: string, displayName: string, role: UserRole) => {
+    if (!auth || !firestore) throw new Error("Firebase services not available");
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const firebaseUser = userCredential.user;
+    
+    await updateProfile(firebaseUser, { displayName });
+    
+    const userDocRef = doc(firestore, 'users', firebaseUser.uid);
+    await setDoc(userDocRef, {
+      displayName,
+      email,
+      role,
+      xp: 0,
+      badges: []
+    });
 
-  const logout = useCallback(() => {
+  }, [auth, firestore]);
+
+  const logout = useCallback(async () => {
+    if (!auth) throw new Error("Auth service not available");
+    await signOut(auth);
     setUser(null);
-    try {
-      localStorage.removeItem('userRole');
-    } catch (error) {
-      console.error("Could not access localStorage", error);
-    }
     router.push('/');
-  }, [router]);
+  }, [auth, router]);
 
-  const value = { user, login, logout, loading };
+  const value = { user, login, signup, logout, loading: loading || isFirebaseUserLoading };
 
-  if (loading) {
+  if (loading || isFirebaseUserLoading) {
     return (
         <div className="flex items-center justify-center min-h-screen">
           <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-primary"></div>

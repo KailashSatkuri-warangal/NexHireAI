@@ -6,10 +6,14 @@ import RecruiterView from "@/components/dashboard/recruiter-view";
 import AdminView from "@/components/dashboard/admin-view";
 
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
 
-  if (!user) {
-    return null; // or a loading spinner
+  if (loading || !user) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
   }
 
   const renderDashboard = () => {
@@ -21,7 +25,7 @@ export default function DashboardPage() {
       case 'admin':
         return <AdminView />;
       default:
-        return <div>Invalid user role.</div>;
+        return <div>Invalid user role. Please contact support.</div>;
     }
   };
 
