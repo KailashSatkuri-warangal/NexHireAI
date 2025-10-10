@@ -134,18 +134,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value = { user, login, signup, logout, loading: loading || isFirebaseUserLoading };
 
-  if (loading || isFirebaseUserLoading) {
-    const publicRoutes = ['/', '/signup'];
-    if (!publicRoutes.includes(pathname)) {
-        return (
-            <div className="flex items-center justify-center min-h-screen">
-              <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-primary"></div>
-            </div>
-          );
-    }
-  }
-
-
+  // Always render children to prevent hydration mismatch.
+  // The useEffect hook will handle redirecting away from protected routes.
   return (
     <AuthContext.Provider value={value}>
       {children}
