@@ -10,7 +10,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { generate } from 'genkit/generate';
+import { generate } from 'genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 
 const AnalyzeResumeInputSchema = z.object({
