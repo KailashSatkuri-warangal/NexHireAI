@@ -7,19 +7,27 @@ import {
   useEffect,
   ReactNode,
 } from 'react';
-import {
-  User as FirebaseUser,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-} from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-
-import { User, Role } from '@/lib/types';
-import { initializeFirebase } from '@/firebase';
-import type { SignupData } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
+import type { User, Role } from '@/lib/types';
+import type { SignupData } from '@/lib/auth';
+
+// Mock Data
+const mockUsers: User[] = [
+  {
+    id: '1',
+    name: 'Rohith Macharla',
+    email: 'macharlarohith111@gmail.com',
+    role: 'candidate',
+    avatarUrl: 'https://picsum.photos/seed/1/200',
+  },
+  {
+    id: '2',
+    name: 'Admin User',
+    email: 'macharlarohith45@gmail.com',
+    role: 'recruiter',
+    avatarUrl: 'https://picsum.photos/seed/2/200',
+  },
+];
 
 interface AuthContextType {
   user: User | null;
@@ -35,48 +43,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
-  const { auth, firestore } = initializeFirebase();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
-      if (firebaseUser) {
-        const userDoc = await getDoc(doc(firestore, 'users', firebaseUser.uid));
-        if (userDoc.exists()) {
-          setUser({ id: firebaseUser.uid, ...userDoc.data() } as User);
-        } else {
-          // Handle case where user exists in Auth but not Firestore
-          setUser(null);
-        }
-      } else {
-        setUser(null);
-      }
-      setIsLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [auth, firestore]);
+    // Simulate checking for a logged-in user from a previous session
+    const storedUser = sessionStorage.getItem('user');
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
+    setIsLoading(false);
+  }, []);
 
   const login = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
+    // In a real app, you'd also check the password.
+    // For this mock, we'll just find the user by email.
+    const foundUser = mockUsers.find((u) => u.email === email);
+    if (foundUser) {
+      // Add password check for the provided credentials
+      if (email === 'macharlarohith111@gmail.com' && password === 'Rohith@999r') {
+         setUser(foundUser);
+         sessionStorage.setItem('user', JSON.stringify(foundUser));
+         return;
+      }
+      if (email === 'macharlarohith45@gmail.com' && password === 'Rohith@999r') {
+        setUser(foundUser);
+        sessionStorage.setItem('user', JSON.stringify(foundUser));
+        return;
+      }
+    }
+    throw new Error('Invalid email or password');
   };
 
   const signup = async (signupData: SignupData) => {
-    const { name, email, password, role } = signupData;
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const firebaseUser = userCredential.user;
-
-    const newUser: Omit<User, 'id'> = {
+    const { email, name, role } = signupData;
+    // Check if user already exists
+    if (mockUsers.find((u) => u.email === email)) {
+      throw new Error('An account with this email already exists.');
+    }
+    // Create new mock user
+    const newUser: User = {
+      id: String(mockUsers.length + 1),
       name,
       email,
       role,
-      avatarUrl: `https://picsum.photos/seed/${firebaseUser.uid}/200`,
+      avatarUrl: `https://picsum.photos/seed/${mockUsers.length + 1}/200`,
     };
-
-    await setDoc(doc(firestore, 'users', firebaseUser.uid), newUser);
+    mockUsers.push(newUser);
+    // For this mock, we don't auto-login on signup.
+    // The user will be redirected to the login form.
+    return;
   };
 
   const logout = async () => {
-    await signOut(auth);
+    setUser(null);
+    sessionStorage.removeItem('user');
     router.push('/');
   };
 

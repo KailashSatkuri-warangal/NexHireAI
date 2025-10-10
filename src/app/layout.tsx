@@ -6,7 +6,7 @@ import './globals.css';
 import { cn } from '@/lib/utils';
 import { Toaster } from '@/components/ui/toaster';
 import { ThemeProvider } from '@/components/theme-provider';
-import { AuthProvider } from '@/hooks/use-auth.tsx';
+import { AuthProvider } from '@/hooks/use-auth';
 
 const fontBody = Inter({
   subsets: ['latin'],
