@@ -11,14 +11,19 @@ import { ProfileCard } from '@/components/profile/ProfileCard';
 import { EditProfileForm } from '@/components/profile/EditProfileForm';
 import { Skeleton } from '@/components/ui/skeleton';
 import { analyzeResume } from '@/ai/flows/analyze-resume-flow';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { PersonalUnderstanding } from '@/components/profile/PersonalUnderstanding';
+import { motion, AnimatePresence } from 'framer-motion';
+
+type View = 'profile' | 'edit' | 'analysis';
 
 export default function ProfilePage() {
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const [profileData, setProfileData] = useState<UserType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isEditing, setIsEditing] = useState(false);
+  const [view, setView] = useState<View>('profile');
+  const [rotation, setRotation] = useState(0);
+
   const { toast } = useToast();
   const { firestore } = initializeFirebase();
 
@@ -63,28 +68,33 @@ export default function ProfilePage() {
   const handleProfileUpdate = async (formData: Partial<UserType>) => {
     if (!user || !profileData) return;
 
-    const userDocRef = doc(firestore, 'users', user.id);
-    
-    const updatedData = {
-        ...profileData,
-        ...formData,
-        candidateSpecific: {
-            ...profileData.candidateSpecific,
-            ...formData.candidateSpecific,
-        },
-        recruiterSpecific: {
-            ...profileData.recruiterSpecific,
-            ...formData.recruiterSpecific,
-        },
-    };
+    // Create a new object for the update to avoid stale state issues.
+    const updatedProfileData = { ...profileData };
 
+    // Deep merge properties
+    for (const key in formData) {
+      const typedKey = key as keyof UserType;
+      if (typeof formData[typedKey] === 'object' && formData[typedKey] !== null && !Array.isArray(formData[typedKey])) {
+        // @ts-ignore
+        updatedProfileData[typedKey] = {
+          // @ts-ignore
+          ...updatedProfileData[typedKey],
+          ...formData[typedKey],
+        };
+      } else {
+        // @ts-ignore
+        updatedProfileData[typedKey] = formData[typedKey];
+      }
+    }
+    
     try {
+        const userDocRef = doc(firestore, 'users', user.id);
         await setDoc(userDocRef, formData, { merge: true });
         
-        setProfileData(updatedData);
+        setProfileData(updatedProfileData);
 
         toast({ title: "Success", description: "Profile updated successfully!" });
-        setIsEditing(false);
+        handleViewChange('profile');
     } catch (error) {
         console.error("Error updating profile:", error);
         toast({ title: "Error", description: "Could not update profile.", variant: "destructive" });
@@ -120,6 +130,9 @@ export default function ProfilePage() {
         };
 
         await handleProfileUpdate(updatePayload);
+        if (profileData?.analysis?.summary) {
+            handleViewChange('analysis', 'right');
+        }
 
       } catch(error) {
          console.error("Error running analysis:", error);
@@ -127,38 +140,70 @@ export default function ProfilePage() {
       }
   }
 
+  const handleViewChange = (newView: View, direction: 'left' | 'right' | 'back' = 'back') => {
+      if (newView === 'edit') {
+          setRotation(prev => prev + 180);
+      } else if (newView === 'analysis') {
+          setRotation(prev => prev - 180);
+      } else { // 'profile'
+          // Check current rotation to flip back correctly
+          if (rotation % 360 !== 0) {
+            setRotation(0); // A simplified approach to reset
+          }
+      }
+      setView(newView);
+  }
 
   if (isLoading || authLoading || !profileData) {
     return <ProfileSkeleton />;
   }
+  
+  const hasAnalysis = !!profileData.analysis?.summary;
 
   return (
     <div className="relative min-h-[calc(100vh-5rem)] w-full bg-secondary py-8">
       <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.1),rgba(255,255,255,0))]"></div>
       
       <div className="container mx-auto px-4 md:px-6 flex items-center justify-center">
-         <div className="w-full max-w-4xl">
-            {isEditing ? (
-              <Card className="w-full rounded-3xl border border-white/10 bg-card/80 p-6 shadow-2xl backdrop-blur-xl dark:border-white/20 dark:bg-black/40">
-                <CardHeader>
-                  <CardTitle>Edit Profile</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <EditProfileForm 
+         <div className="w-full max-w-4xl h-[85vh] perspective">
+            <motion.div
+                className="w-full h-full preserve-3d"
+                initial={false}
+                animate={{ rotateY: rotation }}
+                transition={{ duration: 0.7, ease: 'easeInOut' }}
+            >
+                {/* Profile Face */}
+                <div className="absolute w-full h-full backface-hidden">
+                    <ProfileCard 
                       profileData={profileData} 
-                      onSave={handleProfileUpdate} 
-                      onCancel={() => setIsEditing(false)} 
-                  />
-                </CardContent>
-              </Card>
-            ) : (
-              <ProfileCard 
-                  profileData={profileData} 
-                  onRunAnalysis={runAnalysis}
-                  onEdit={() => setIsEditing(true)}
-                  onAvatarUpload={(file) => handleProfileUpdate({ avatarUrl: URL.createObjectURL(file)})} // simplified for UI
-              />
-            )}
+                      onRunAnalysis={runAnalysis}
+                      onEdit={() => handleViewChange('edit', 'left')}
+                      onViewInsights={hasAnalysis ? () => handleViewChange('analysis', 'right') : undefined}
+                      onAvatarUpload={(file) => handleProfileUpdate({ avatarUrl: URL.createObjectURL(file)})} // simplified for UI
+                    />
+                </div>
+
+                {/* Edit Face */}
+                <div className="absolute w-full h-full backface-hidden rotate-y-180">
+                     <div className="w-full h-full rounded-3xl border border-white/10 bg-card/80 p-6 shadow-2xl backdrop-blur-xl dark:border-white/20 dark:bg-black/40">
+                        <div className="max-h-full overflow-y-auto pr-4">
+                            <EditProfileForm 
+                                profileData={profileData} 
+                                onSave={handleProfileUpdate} 
+                                onCancel={() => handleViewChange('profile')} 
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Analysis Face */}
+                <div className="absolute w-full h-full backface-hidden" style={{ transform: 'rotateY(-180deg)' }}>
+                    <PersonalUnderstanding 
+                        analysis={profileData.analysis?.summary}
+                        onFlip={() => handleViewChange('profile')}
+                    />
+                </div>
+          </motion.div>
         </div>
       </div>
     </div>
