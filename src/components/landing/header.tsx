@@ -17,9 +17,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '../theme-toggle';
-import { useAuth } from '@/hooks/use-auth.tsx';
+import { useAuth } from '@/hooks/use-auth';
 import { Skeleton } from '../ui/skeleton';
 import { User } from 'lucide-react';
+import { Navigation } from './navigation';
 
 export function Header() {
   const { user, isLoading, logout } = useAuth();
@@ -44,20 +45,7 @@ export function Header() {
           <Logo className="h-8 w-8" />
           <span className="text-xl font-bold">NexHireAI</span>
         </Link>
-        <nav className="hidden items-center gap-6 md:flex">
-          <Link href="/#home" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
-            Home
-          </Link>
-          <Link href="/#about" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
-            About
-          </Link>
-          <Link href="/#features" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
-            Features
-          </Link>
-          <Link href="/#contact" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
-            Contact
-          </Link>
-        </nav>
+        <Navigation />
         <div className="flex items-center gap-4">
           <ThemeToggle />
           {isLoading ? (
