@@ -94,7 +94,7 @@ export default function ProfilePage() {
 
       } catch(error) {
          console.error("Error running analysis:", error);
-         toast({ title: "Analysis Failed", description: "Could not analyze profile.", variant: "destructive" });
+         toast({ title: "Analysis Failed", description: (error as Error).message || "An unknown error occurred.", variant: "destructive" });
       }
   }
 
