@@ -69,9 +69,24 @@ export default function ProfilePage() {
 
     const userDocRef = doc(firestore, 'users', user.id);
     try {
-        const newData = { ...profileData, ...updatedData, 
-          ...(updatedData.analysis && { analysis: { ...profileData.analysis, ...updatedData.analysis }})
+        // Deep merge nested objects like candidateSpecific
+        const newData = {
+          ...profileData,
+          ...updatedData,
+          candidateSpecific: {
+            ...profileData.candidateSpecific,
+            ...updatedData.candidateSpecific
+          },
+          recruiterSpecific: {
+            ...profileData.recruiterSpecific,
+            ...updatedData.recruiterSpecific
+          },
+          analysis: updatedData.analysis ? {
+            ...profileData.analysis,
+            ...updatedData.analysis
+          } : profileData.analysis,
         };
+
         setProfileData(newData as UserType);
         
         await setDoc(userDocRef, updatedData, { merge: true });
@@ -127,14 +142,14 @@ export default function ProfilePage() {
     
     if (newView === 'edit') {
         newDirection = 1; // Flip left
-        newY = rotation.y - 180 * newDirection;
+        newY = rotation.y + 180 * newDirection;
     } else if (newView === 'analysis') {
         newDirection = -1; // Flip right
-        newY = rotation.y - 180 * newDirection;
+        newY = rotation.y + 180 * newDirection;
     } else { // Back to profile
-        newY = (rotation.y % 360 === 0) ? rotation.y - 180 * rotation.direction : Math.round(rotation.y / 360) * 360;
+        newY = (rotation.y % 360 !== 0) ? rotation.y - 180 * rotation.direction : 0;
     }
-
+    
     setRotation({ y: newY, direction: newDirection });
     setView(newView);
   };
@@ -182,7 +197,7 @@ export default function ProfilePage() {
                 </div>
 
                  {/* Edit Face */}
-                <div className="absolute w-full h-full backface-hidden" style={{ transform: 'rotateY(180deg)' }}>
+                <div className="absolute w-full h-full backface-hidden" style={{ transform: 'rotateY(-180deg)' }}>
                     <AnimatePresence>
                     {view === 'edit' && (
                         <motion.div
@@ -207,7 +222,7 @@ export default function ProfilePage() {
 
 
                 {/* Analysis Face */}
-                <div className="absolute w-full h-full backface-hidden" style={{ transform: 'rotateY(-180deg)' }}>
+                <div className="absolute w-full h-full backface-hidden" style={{ transform: 'rotateY(180deg)' }}>
                      <AnimatePresence>
                         {view === 'analysis' && (
                              <motion.div
