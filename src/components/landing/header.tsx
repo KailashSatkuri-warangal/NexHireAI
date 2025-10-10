@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { ThemeToggle } from '../theme-toggle';
 
 export function Header() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -81,6 +82,7 @@ export function Header() {
             </DropdownMenu>
           ) : (
             <div className="hidden items-center gap-2 sm:flex">
+              <ThemeToggle />
               <Button asChild variant="ghost">
                 <Link href="/login">Login</Link>
               </Button>
