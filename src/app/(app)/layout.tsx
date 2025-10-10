@@ -23,12 +23,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-
-  // This is a workaround to ensure the component is a client component.
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
+  
   return (
     <div className="flex min-h-screen w-full">
       <Sidebar />
