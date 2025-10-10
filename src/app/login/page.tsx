@@ -41,7 +41,7 @@ export default function AuthPage() {
         {/* Left Panel: Motivational Content */}
         <div className="relative hidden lg:flex flex-col justify-center items-start p-12">
            <Link href="/" className="flex items-center gap-2 self-start mb-12">
-            <Logo className="h-8 w-8 text-primary-foreground" />
+            <Logo className="h-8 w-8 text-primary" />
             <span className="text-xl font-bold">NexHireAI</span>
           </Link>
           <div className='max-w-md'>
@@ -53,7 +53,7 @@ export default function AuthPage() {
                     exit={{ opacity: 0, y: -20 }}
                     transition={{ duration: 0.5, delay: 0.2 }}
                 >
-                    <h2 className="text-5xl font-bold leading-tight">
+                    <h2 className="text-5xl font-bold leading-tight text-white">
                         {isLoginMode ? "Your Career Journey Starts Here." : "Recruit the best. Get hired faster."}
                     </h2>
                     <p className="mt-4 text-lg text-muted-foreground">
@@ -101,7 +101,7 @@ export default function AuthPage() {
 }
 
 const AuthCard = ({ children }: { children: React.ReactNode }) => (
-  <div className="w-full h-full rounded-3xl border border-white/20 bg-white/10 p-8 shadow-2xl backdrop-blur-lg">
+  <div className="w-full h-full rounded-3xl border border-white/20 bg-black/30 p-8 shadow-2xl backdrop-blur-lg">
     {children}
   </div>
 );
@@ -117,7 +117,7 @@ function LoginForm({ setIsLoginMode }: { setIsLoginMode: (isLogin: boolean) => v
             className="flex flex-col h-full"
         >
             <div className="grid gap-2 text-center mb-10">
-              <h1 className="text-3xl font-bold">Welcome Back</h1>
+              <h1 className="text-3xl font-bold text-white">Welcome Back</h1>
               <p className="text-balance text-muted-foreground">
                 Enter your credentials to access your account.
               </p>
@@ -139,12 +139,12 @@ function LoginForm({ setIsLoginMode }: { setIsLoginMode: (isLogin: boolean) => v
                 <AuthButton variant="outline">
                     <Chrome className="mr-2 h-4 w-4" />
                     Login with Google
-                </AuthButton>
+                </Auth-Button>
             </div>
             
-            <div className="mt-auto text-center text-sm">
+            <div className="mt-auto text-center text-sm text-muted-foreground">
                 Don&apos;t have an account?{' '}
-                <button onClick={() => setIsLoginMode(false)} className="underline font-semibold hover:text-primary transition-colors">
+                <button onClick={() => setIsLoginMode(false)} className="underline font-semibold text-primary hover:text-primary/80 transition-colors">
                     Sign up
                 </button>
             </div>
@@ -164,7 +164,7 @@ function SignupForm({ setIsLoginMode }: { setIsLoginMode: (isLogin: boolean) => 
             className="flex flex-col h-full"
           >
             <div className="grid gap-2 text-center mb-6">
-              <h1 className="text-3xl font-bold">Create an account</h1>
+              <h1 className="text-3xl font-bold text-white">Create an account</h1>
               <p className="text-balance text-muted-foreground">
                 Enter your info to join the future of hiring.
               </p>
@@ -191,9 +191,9 @@ function SignupForm({ setIsLoginMode }: { setIsLoginMode: (isLogin: boolean) => 
                 </AuthButton>
             </div>
             
-            <div className="mt-auto text-center text-sm">
+            <div className="mt-auto text-center text-sm text-muted-foreground">
               Already have an account?{' '}
-              <button onClick={() => setIsLoginMode(true)} className="underline font-semibold hover:text-primary transition-colors">
+              <button onClick={() => setIsLoginMode(true)} className="underline font-semibold text-primary hover:text-primary/80 transition-colors">
                 Login
               </button>
             </div>
@@ -228,10 +228,10 @@ const RoleOption = ({ value, icon, label }: { value: string; icon: React.ReactNo
       <RadioGroupItem value={value} id={value} className="peer sr-only" />
       <Label
         htmlFor={value}
-        className="flex h-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-white/20 bg-white/10 p-4 shadow-lg transition-all hover:bg-white/20 peer-data-[state=checked]:border-accent peer-data-[state=checked]:shadow-accent/30 peer-data-[state=checked]:shadow-xl"
+        className="flex h-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-white/20 bg-black/30 p-4 shadow-lg transition-all hover:bg-black/40 peer-data-[state=checked]:border-accent peer-data-[state=checked]:shadow-accent/30 peer-data-[state=checked]:shadow-xl"
       >
         <div className="mb-2 text-accent">{icon}</div>
-        <span className="font-semibold">{label}</span>
+        <span className="font-semibold text-white">{label}</span>
       </Label>
     </motion.div>
 );
