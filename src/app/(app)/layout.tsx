@@ -6,6 +6,8 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+  // The redirection and auth checks are now fully handled by the AuthProvider.
+  // This layout can now be a simple container for the authenticated view.
   return (
     <div className="flex min-h-screen w-full">
       <Sidebar />

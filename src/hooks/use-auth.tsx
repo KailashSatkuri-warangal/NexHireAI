@@ -23,60 +23,78 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, displayName: string, role: UserRole) => Promise<void>;
   logout: () => void;
-  loading: boolean;
+  loading: boolean; // This represents the initial auth check
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Always start in a loading state
   const router = useRouter();
   const pathname = usePathname();
   const { auth, firestore } = useFirebase();
   const { user: firebaseUser, isUserLoading: isFirebaseUserLoading } = useFirebaseUser();
 
+  // This effect synchronizes the app's user state with Firebase's user state
   useEffect(() => {
-    const fetchUserRole = async () => {
+    const syncUser = async () => {
+      if (isFirebaseUserLoading) {
+        // If Firebase is still checking, we are definitely in a loading state.
+        setLoading(true);
+        return;
+      }
+
       if (firebaseUser && firestore) {
-        const userDocRef = doc(firestore, 'users', firebaseUser.uid);
         try {
-            const userDoc = await getDoc(userDocRef);
-            if (userDoc.exists()) {
-              setUser({
-                id: firebaseUser.uid,
-                email: firebaseUser.email || '',
-                name: userDoc.data().displayName || firebaseUser.displayName || 'No Name',
-                role: userDoc.data().role as UserRole,
-                avatarUrl: firebaseUser.photoURL || `https://i.pravatar.cc/150?u=${firebaseUser.uid}`
-              });
-            } else {
-              // This can happen if the user record is created in Auth but not in Firestore yet.
-              setUser(null);
-            }
-        } catch (error) {
-            console.error("Error fetching user document:", error);
+          const userDocRef = doc(firestore, 'users', firebaseUser.uid);
+          const userDoc = await getDoc(userDocRef);
+          if (userDoc.exists()) {
+            setUser({
+              id: firebaseUser.uid,
+              email: firebaseUser.email || '',
+              name: userDoc.data().displayName || firebaseUser.displayName || 'No Name',
+              role: userDoc.data().role as UserRole,
+              avatarUrl: firebaseUser.photoURL || `https://i.pravatar.cc/150?u=${firebaseUser.uid}`
+            });
+          } else {
+            // This can happen during signup if the doc isn't created yet
             setUser(null);
+          }
+        } catch (error) {
+          console.error("Error fetching user document:", error);
+          setUser(null);
         }
       } else {
+        // No firebaseUser, so no app user
         setUser(null);
       }
+      
+      // We are done with the initial auth check
       setLoading(false);
     };
 
-    if (!isFirebaseUserLoading) {
-      fetchUserRole();
-    }
+    syncUser();
   }, [firebaseUser, firestore, isFirebaseUserLoading]);
 
+  // This effect handles redirection based on auth state
   useEffect(() => {
-    if (!loading) {
-      if (user && (pathname === '/' || pathname === '/signup')) {
-        router.push('/dashboard');
-      } else if (!user && pathname.startsWith('/dashboard')) {
-        router.push('/');
-      }
+    // Don't redirect until we are finished with the initial loading
+    if (loading) {
+      return;
     }
+
+    const isAuthPage = pathname === '/' || pathname === '/signup';
+    
+    // If we have a user and they are on an auth page, redirect to dashboard
+    if (user && isAuthPage) {
+      router.push('/dashboard');
+    } 
+    // If we don't have a user and they are on a protected page, redirect to login
+    else if (!user && !isAuthPage) {
+      router.push('/');
+    }
+
   }, [user, loading, pathname, router]);
 
   const login = useCallback(async (email: string, password: string) => {
@@ -112,13 +130,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         badges: [],
       };
 
-      setDoc(userDocRef, userData).catch(serverError => {
+      await setDoc(userDocRef, userData).catch(serverError => {
         const permissionError = new FirestorePermissionError({
           path: userDocRef.path,
           operation: 'create',
           requestResourceData: userData,
         });
         errorEmitter.emit('permission-error', permissionError);
+        // Re-throwing is important for the calling function to catch it
         throw permissionError;
       });
     },
@@ -134,17 +153,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value = { user, login, signup, logout, loading };
   
+  // Render a full-page loading indicator during the initial auth check to prevent hydration issues.
+  if (loading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+  
   return (
     <AuthContext.Provider value={value}>
-      {loading ? (
-         <div className="flex h-screen w-full items-center justify-center">
-            <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-primary"></div>
-         </div>
-      ) : children}
+      {children}
     </AuthContext.Provider>
   );
 }
-
 
 export function useAuth() {
   const context = useContext(AuthContext);
