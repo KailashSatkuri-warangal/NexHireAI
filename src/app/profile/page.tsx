@@ -29,16 +29,25 @@ export default function ProfilePage() {
   }, [user, authLoading, router]);
 
   const fetchProfile = useCallback(async () => {
-    if (user) {
+    if (user && firestore) {
+      setIsLoading(true);
       try {
         const userDocRef = doc(firestore, 'users', user.id);
         const docSnap = await getDoc(userDocRef);
         if (docSnap.exists()) {
           const data = { id: docSnap.id, ...docSnap.data() } as UserType;
           setProfileData(data);
-          if (data.analysis?.summary) {
-            setIsFlipped(true); // Flip to analysis if it exists
-          }
+        } else {
+          // If no profile exists in Firestore, create a basic one.
+          // This can happen if user was created but profile creation failed.
+          const basicProfile: UserType = {
+            id: user.id,
+            email: user.email,
+            name: user.name || "New User",
+            role: 'candidate', // default role
+          };
+          await setDoc(doc(firestore, "users", user.id), basicProfile);
+          setProfileData(basicProfile);
         }
       } catch (error) {
         console.error("Error fetching profile:", error);
@@ -53,17 +62,31 @@ export default function ProfilePage() {
     fetchProfile();
   }, [fetchProfile]);
   
+  useEffect(() => {
+    if (profileData?.analysis?.summary) {
+        setIsFlipped(true); // Flip to analysis if it exists on load
+    } else {
+        setIsFlipped(false); // Default to front if no analysis
+    }
+  }, [profileData?.analysis?.summary]);
+
   const handleProfileUpdate = async (updatedData: Partial<UserType>) => {
     if (!user || !profileData) return;
 
     const userDocRef = doc(firestore, 'users', user.id);
     try {
-        const newData = { ...profileData, ...updatedData };
+        // Optimistically update UI
+        const newData = { ...profileData, ...updatedData, 
+          ...(updatedData.analysis && { analysis: { ...profileData.analysis, ...updatedData.analysis }})
+        };
+        setProfileData(newData as UserType);
+        
         await setDoc(userDocRef, updatedData, { merge: true });
-        setProfileData(newData);
         toast({ title: "Success", description: "Profile updated successfully!" });
     } catch (error) {
         console.error("Error updating profile:", error);
+        // Revert optimistic update on error
+        setProfileData(profileData);
         toast({ title: "Error", description: "Could not update profile.", variant: "destructive" });
     }
   };
@@ -142,6 +165,7 @@ export default function ProfilePage() {
                     onFlip={() => setIsFlipped(false)}
                 />
               ) : (
+                // This is a fallback for the brief moment before the card flips back after analysis is cleared
                 <div className="flex items-center justify-center h-full w-full rounded-3xl bg-card p-6">
                     <p>No analysis data available. Run the analysis to see insights.</p>
                 </div>
