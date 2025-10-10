@@ -1,3 +1,4 @@
+
 export type UserRole = 'candidate' | 'recruiter' | 'admin';
 
 export interface AppUser {
@@ -6,6 +7,7 @@ export interface AppUser {
   email: string;
   role: UserRole;
   avatarUrl: string;
+  xp?: number;
 }
 
 export interface Assessment {
@@ -15,16 +17,19 @@ export interface Assessment {
   date: string;
   score: number;
   status: 'Completed' | 'In Progress';
+  userId: string;
 }
 
 export interface Skill {
   name: string;
   score: number;
+  userId: string;
 }
 
 export interface Candidate {
   id: string;
-  name: string;
+  displayName: string;
+  email: string;
   role: string;
   score: number;
   xp: number;

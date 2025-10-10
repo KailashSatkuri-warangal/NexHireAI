@@ -23,24 +23,22 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, displayName: string, role: UserRole) => Promise<void>;
   logout: () => void;
-  loading: boolean; // This represents the initial auth check
+  loading: boolean;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
-  const [loading, setLoading] = useState(true); // Always start in a loading state
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
   const { auth, firestore } = useFirebase();
   const { user: firebaseUser, isUserLoading: isFirebaseUserLoading } = useFirebaseUser();
 
-  // This effect synchronizes the app's user state with Firebase's user state
   useEffect(() => {
     const syncUser = async () => {
       if (isFirebaseUserLoading) {
-        // If Firebase is still checking, we are definitely in a loading state.
         setLoading(true);
         return;
       }
@@ -58,40 +56,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               avatarUrl: firebaseUser.photoURL || `https://i.pravatar.cc/150?u=${firebaseUser.uid}`
             });
           } else {
-            // This can happen during signup if the doc isn't created yet
+            // This can happen if the doc creation is pending or failed.
+            // Log out the user to force a clean state.
+            await signOut(auth);
             setUser(null);
           }
         } catch (error) {
           console.error("Error fetching user document:", error);
+          await signOut(auth);
           setUser(null);
         }
       } else {
-        // No firebaseUser, so no app user
         setUser(null);
       }
       
-      // We are done with the initial auth check
       setLoading(false);
     };
 
     syncUser();
-  }, [firebaseUser, firestore, isFirebaseUserLoading]);
+  }, [firebaseUser, firestore, isFirebaseUserLoading, auth]);
 
-  // This effect handles redirection based on auth state
   useEffect(() => {
-    // Don't redirect until we are finished with the initial loading
     if (loading) {
       return;
     }
 
     const isAuthPage = pathname === '/' || pathname === '/signup';
     
-    // If we have a user and they are on an auth page, redirect to dashboard
     if (user && isAuthPage) {
       router.push('/dashboard');
-    } 
-    // If we don't have a user and they are on a protected page, redirect to login
-    else if (!user && !isAuthPage) {
+    } else if (!user && !isAuthPage) {
       router.push('/');
     }
 
@@ -100,6 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     if (!auth) throw new Error("Auth service not available");
     await signInWithEmailAndPassword(auth, email, password);
+    // State change will be handled by the useEffect hooks
   }, [auth]);
 
   const signup = useCallback(
@@ -130,7 +125,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         badges: [],
       };
 
-      await setDoc(userDocRef, userData).catch(serverError => {
+      // Use a non-blocking write with proper error handling
+      setDoc(userDocRef, userData).catch(serverError => {
         const permissionError = new FirestorePermissionError({
           path: userDocRef.path,
           operation: 'create',
@@ -145,7 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(async () => {
-    if (!auth) throw new Error("Auth service not available");
+    if (!auth) return;
     await signOut(auth);
     setUser(null);
     router.push('/');
@@ -153,10 +149,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value = { user, login, signup, logout, loading };
   
-  // Render a full-page loading indicator during the initial auth check to prevent hydration issues.
   if (loading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center">
+      <div className="flex h-screen w-full items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-primary"></div>
       </div>
     );
