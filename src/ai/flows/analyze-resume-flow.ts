@@ -41,7 +41,7 @@ const AnalysisSummarySchema = z.object({
 
 export async function analyzeResume(input: { skills: string[], bio: string, experienceLevel: ExperienceLevel }): Promise<AnalysisSummary> {
   const { output } = await ai.generate({
-    model: googleAI.model('gemini-pro'),
+    model: googleAI.model('gemini-1.5-flash-latest'),
     prompt: `You are a helpful career coach and resume analysis expert.
     Based on the provided skills, bio, and experience level, perform a detailed analysis.
 
