@@ -6,14 +6,17 @@ import type { UserRole, AppUser } from '@/lib/types';
 import {
   useFirebase,
   useUser as useFirebaseUser,
+  errorEmitter,
+  FirestorePermissionError,
 } from '@/firebase';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
+  type Auth,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, type Firestore } from 'firebase/firestore';
 
 interface AuthContextType {
   user: AppUser | null;
@@ -37,29 +40,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const fetchUserRole = async () => {
       if (firebaseUser && firestore) {
+        setLoading(true);
         const userDocRef = doc(firestore, 'users', firebaseUser.uid);
-        const userDoc = await getDoc(userDocRef);
-        if (userDoc.exists()) {
-          setUser({
-            id: firebaseUser.uid,
-            email: firebaseUser.email || '',
-            name: firebaseUser.displayName || 'No Name',
-            role: userDoc.data().role as UserRole,
-            avatarUrl: firebaseUser.photoURL || `https://i.pravatar.cc/150?u=${firebaseUser.uid}`
-          });
-        } else {
-          // Handle case where user exists in Auth but not Firestore
-           setUser(null); 
+        try {
+            const userDoc = await getDoc(userDocRef);
+            if (userDoc.exists()) {
+              setUser({
+                id: firebaseUser.uid,
+                email: firebaseUser.email || '',
+                name: userDoc.data().displayName || firebaseUser.displayName || 'No Name',
+                role: userDoc.data().role as UserRole,
+                avatarUrl: firebaseUser.photoURL || `https://i.pravatar.cc/150?u=${firebaseUser.uid}`
+              });
+            } else {
+              // User is in Auth, but no doc in Firestore. This can happen during signup.
+              // We can wait for the signup flow to complete the doc creation.
+              setUser(null);
+            }
+        } catch (error) {
+            console.error("Error fetching user document:", error);
+            setUser(null);
+        } finally {
+            setLoading(false);
         }
-      } else {
+      } else if (!isFirebaseUserLoading) {
         setUser(null);
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchUserRole();
-  }, [firebaseUser, firestore]);
-  
+  }, [firebaseUser, firestore, isFirebaseUserLoading]);
+
   useEffect(() => {
     const publicRoutes = ['/', '/signup'];
     if (!loading && !user && !publicRoutes.includes(pathname)) {
@@ -72,23 +84,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await signInWithEmailAndPassword(auth, email, password);
   }, [auth]);
 
-  const signup = useCallback(async (email: string, password: string, displayName: string, role: UserRole) => {
-    if (!auth || !firestore) throw new Error("Firebase services not available");
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const firebaseUser = userCredential.user;
-    
-    await updateProfile(firebaseUser, { displayName });
-    
-    const userDocRef = doc(firestore, 'users', firebaseUser.uid);
-    await setDoc(userDocRef, {
-      displayName,
-      email,
-      role,
-      xp: 0,
-      badges: []
-    });
+  const signup = useCallback(
+    async (
+      email: string,
+      password: string,
+      displayName: string,
+      role: UserRole
+    ) => {
+      if (!auth || !firestore) {
+        throw new Error('Firebase services not available');
+      }
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+      const firebaseUser = userCredential.user;
 
-  }, [auth, firestore]);
+      await updateProfile(firebaseUser, { displayName });
+
+      const userDocRef = doc(firestore, 'users', firebaseUser.uid);
+      const userData = {
+        displayName,
+        email,
+        role,
+        xp: 0,
+        badges: [],
+      };
+
+      // Non-blocking write with contextual error handling
+      setDoc(userDocRef, userData).catch(serverError => {
+        const permissionError = new FirestorePermissionError({
+          path: userDocRef.path,
+          operation: 'create',
+          requestResourceData: userData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      });
+    },
+    [auth, firestore]
+  );
 
   const logout = useCallback(async () => {
     if (!auth) throw new Error("Auth service not available");
@@ -100,12 +135,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value = { user, login, signup, logout, loading: loading || isFirebaseUserLoading };
 
   if (loading || isFirebaseUserLoading) {
-    return (
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-primary"></div>
-        </div>
-      );
+    const publicRoutes = ['/', '/signup'];
+    if (!publicRoutes.includes(pathname)) {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+              <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-primary"></div>
+            </div>
+          );
+    }
   }
+
 
   return (
     <AuthContext.Provider value={value}>
