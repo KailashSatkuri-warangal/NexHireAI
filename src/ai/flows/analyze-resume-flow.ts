@@ -7,20 +7,9 @@
  * - AnalyzeResumeInput - The input type for the analyzeResume function.
  * - AnalyzeResumeOutput - The return type for the analyzeResume function.
  */
-import { genkit } from 'genkit';
-import { googleAI } from '@genkit-ai/google-genai';
+
+import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-
-// Initialize Genkit directly in this file
-const ai = genkit({
-  plugins: [
-    googleAI({
-      location: 'us-central1',
-      apiVersion: 'v1',
-    }),
-  ],
-});
-
 
 const AnalyzeResumeInputSchema = z.object({
   skills: z.array(z.string()).describe("A list of the candidate's skills."),
@@ -55,15 +44,21 @@ export type AnalyzeResumeOutput = z.infer<typeof AnalyzeResumeOutputSchema>;
 
 
 export async function analyzeResume(input: AnalyzeResumeInput): Promise<AnalyzeResumeOutput> {
-  const { candidates } = await ai.generate({
-    model: googleAI.model('gemini-1.5-flash'),
-    prompt: `You are a helpful career coach and resume analysis expert.
+  return analyzeResumeFlow(input);
+}
+
+
+const prompt = ai.definePrompt({
+  name: 'analyzeResumePrompt',
+  input: {schema: AnalyzeResumeInputSchema},
+  output: {schema: AnalyzeResumeOutputSchema},
+  prompt: `You are a helpful career coach and resume analysis expert.
     Based on the provided skills, bio, and experience level, perform a detailed analysis.
 
     Candidate Information:
-    - Experience Level: ${input.experienceLevel}
-    - Skills: ${input.skills.join(', ')}
-    - Bio: ${input.bio}
+    - Experience Level: {{{experienceLevel}}}
+    - Skills: {{#each skills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
+    - Bio: {{{bio}}}
 
     Your task is to generate a concise analysis.
     - Recommend the top 3 job roles that best match the candidate's profile. Provide a match score for each.
@@ -72,39 +67,22 @@ export async function analyzeResume(input: AnalyzeResumeInput): Promise<AnalyzeR
     - Suggest 2-3 actionable learning tasks to fill those gaps, including an estimated time in weeks.
     - Provide a basic resume health check (assume contact info and skills are present if bio and skills are provided, but check if project work is mentioned in the bio).
     
-    Provide the output in a valid JSON format that strictly adheres to the following TypeScript type:
-    
-    type AnalyzeResumeOutput = {
-      topRoles: Array<{ role: string; score: number; }>;
-      readinessScore: number;
-      gapAnalysis: Array<string>;
-      suggestedLearning: Array<{ task: string; estWeeks: number; }>;
-      resumeHealth: {
-        contact: boolean;
-        projects: boolean;
-        skills: boolean;
-        keywords: boolean;
-      };
-    }
-
-    Do not include any markdown or formatting characters like \`\`\`json.
+    Provide the output in the required JSON format.
     `,
-    config: {
-      temperature: 0.3,
+});
+
+const analyzeResumeFlow = ai.defineFlow(
+  {
+    name: 'analyzeResumeFlow',
+    inputSchema: AnalyzeResumeInputSchema,
+    outputSchema: AnalyzeResumeOutputSchema,
+  },
+  async (input) => {
+    // No model override needed, will use the default from src/ai/genkit.ts
+    const { output } = await prompt(input);
+    if (!output) {
+      throw new Error("Analysis failed to produce an output.");
     }
-  });
-
-  const analysisResultText = candidates[0].output?.text;
-
-  if (!analysisResultText) {
-    throw new Error("Analysis failed to produce a valid result.");
+    return output;
   }
-
-  try {
-    const analysisResult = JSON.parse(analysisResultText);
-    return AnalyzeResumeOutputSchema.parse(analysisResult);
-  } catch (e) {
-    console.error("Failed to parse analysis JSON:", e);
-    throw new Error("AI returned an invalid JSON structure.");
-  }
-}
+);
