@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '../theme-toggle';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/use-auth.tsx';
 import { Skeleton } from '../ui/skeleton';
 
 export function Header() {

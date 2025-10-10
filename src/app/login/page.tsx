@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Chrome, Briefcase, User, ArrowLeft, Mail, KeyRound, UserCircle } from 'lucide-react';
 import { Logo } from '@/components/logo';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/use-auth.tsx';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import type { Role } from '@/lib/types';
@@ -106,7 +106,7 @@ export default function AuthPage() {
 }
 
 const AuthCard = ({ children }: { children: React.ReactNode }) => (
-  <div className="w-full h-full rounded-3xl border border-white/20 dark:border-white/20 bg-card/80 dark:bg-black/30 p-8 shadow-2xl backdrop-blur-lg">
+  <div className="w-full h-full rounded-3xl border border-white/20 bg-card/80 p-8 shadow-2xl backdrop-blur-lg dark:border-white/20 dark:bg-black/30">
     {children}
   </div>
 );
@@ -269,7 +269,7 @@ const AuthInput = ({ id, name, type = 'text', placeholder, icon, required = fals
       <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">
         {icon}
       </div>
-      <Input id={id} name={name} type={type} placeholder={placeholder} required={required} className="pl-10 h-12 bg-background/50 dark:bg-black/20 border-border dark:border-white/20 focus:bg-background/80 dark:focus:bg-black/30 transition-shadow duration-300 focus-visible:ring-primary focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:shadow-[0_0_15px_rgba(var(--accent-rgb),0.5)]" />
+      <Input id={id} name={name} type={type} placeholder={placeholder} required={required} className="pl-10 h-12 border-border bg-background/50 transition-shadow duration-300 focus-visible:ring-primary focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:shadow-[0_0_15px_rgba(var(--accent-rgb),0.5)] dark:border-white/20 dark:bg-black/20 dark:focus:bg-black/30" />
     </div>
 );
 
@@ -291,7 +291,7 @@ const RoleOption = ({ value, icon, label }: { value: string; icon: React.ReactNo
       <RadioGroupItem value={value} id={value} className="peer sr-only" />
       <Label
         htmlFor={value}
-        className="flex h-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-border bg-background/50 dark:border-white/20 dark:bg-black/30 p-4 shadow-lg transition-all hover:bg-background/80 dark:hover:bg-black/40 hover:shadow-primary/30 peer-data-[state=checked]:border-primary peer-data-[state=checked]:shadow-primary/50 peer-data-[state=checked]:shadow-xl [transform:translateZ(0)]"
+        className="flex h-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-border bg-background/50 p-4 shadow-lg transition-all hover:bg-background/80 hover:shadow-primary/30 peer-data-[state=checked]:border-primary peer-data-[state=checked]:shadow-primary/50 peer-data-[state=checked]:shadow-xl dark:border-white/20 dark:bg-black/30 dark:hover:bg-black/40 [transform:translateZ(0)]"
       >
         <div className="mb-2 text-primary [transform:translateZ(20px)]">{icon}</div>
         <span className="font-semibold text-foreground [transform:translateZ(10px)]">{label}</span>
