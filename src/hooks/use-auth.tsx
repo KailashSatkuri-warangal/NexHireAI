@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, createContext, useContext } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import type { UserRole, AppUser } from '@/lib/types';
 import {
   useFirebase,
@@ -32,6 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
   const { auth, firestore } = useFirebase();
   const { user: firebaseUser, isUserLoading: isFirebaseUserLoading } = useFirebaseUser();
 
@@ -51,23 +52,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               });
             } else {
               // This can happen if the user record is created in Auth but not in Firestore yet.
-              // Or if it's a new signup. The signup function will create the doc.
               setUser(null);
             }
         } catch (error) {
             console.error("Error fetching user document:", error);
             setUser(null);
-        } finally {
-            setLoading(false);
         }
-      } else if (!isFirebaseUserLoading) {
+      } else {
         setUser(null);
-        setLoading(false);
       }
+      setLoading(false);
     };
 
-    fetchUserRole();
-  }, [firebaseUser, firestore, isFirebaseUserLoading, router]);
+    if (!isFirebaseUserLoading) {
+      fetchUserRole();
+    }
+  }, [firebaseUser, firestore, isFirebaseUserLoading]);
+
+  useEffect(() => {
+    if (!loading) {
+      if (user && (pathname === '/' || pathname === '/signup')) {
+        router.push('/dashboard');
+      } else if (!user && pathname.startsWith('/dashboard')) {
+        router.push('/');
+      }
+    }
+  }, [user, loading, pathname, router]);
 
   const login = useCallback(async (email: string, password: string) => {
     if (!auth) throw new Error("Auth service not available");
@@ -102,24 +112,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         badges: [],
       };
 
-      await setDoc(userDocRef, userData).catch(serverError => {
+      setDoc(userDocRef, userData).catch(serverError => {
         const permissionError = new FirestorePermissionError({
           path: userDocRef.path,
           operation: 'create',
           requestResourceData: userData,
         });
         errorEmitter.emit('permission-error', permissionError);
-        // Re-throw to be caught by the signup page
         throw permissionError;
-      });
-
-      // Manually set user after successful signup and doc creation
-      setUser({
-          id: fbUser.uid,
-          email: fbUser.email || '',
-          name: displayName,
-          role: role,
-          avatarUrl: fbUser.photoURL || `https://i.pravatar.cc/150?u=${fbUser.uid}`
       });
     },
     [auth, firestore]
@@ -136,7 +136,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   
   return (
     <AuthContext.Provider value={value}>
-      {children}
+      {loading ? (
+         <div className="flex h-screen w-full items-center justify-center">
+            <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-primary"></div>
+         </div>
+      ) : children}
     </AuthContext.Provider>
   );
 }

@@ -14,7 +14,6 @@ import { useToast } from '@/hooks/use-toast';
 
 
 export default function LoginPage() {
-  const router = useRouter();
   const { login } = useAuth();
   const { toast } = useToast();
   const [email, setEmail] = useState('');
@@ -27,7 +26,7 @@ export default function LoginPage() {
         title: "Login Successful",
         description: "Welcome back!",
       });
-      router.push('/dashboard');
+      // The redirect is now handled by the AuthProvider
     } catch (error: any) {
       console.error("Login failed:", error);
       toast({
