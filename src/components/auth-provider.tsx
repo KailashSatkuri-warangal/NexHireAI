@@ -31,14 +31,20 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isClient, setIsClient] = useState(false);
   const router = useRouter();
   const { auth, firestore } = useFirebase();
   const { user: firebaseUser, isUserLoading: isFirebaseUserLoading } = useFirebaseUser();
 
   useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isClient) return;
+
     const fetchUserRole = async () => {
       if (firebaseUser && firestore) {
-        // Still loading user data from Firestore
         setLoading(true);
         const userDocRef = doc(firestore, 'users', firebaseUser.uid);
         try {
@@ -52,25 +58,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 avatarUrl: firebaseUser.photoURL || `https://i.pravatar.cc/150?u=${firebaseUser.uid}`
               });
             } else {
-              // This can happen briefly during signup
               setUser(null);
             }
         } catch (error) {
             console.error("Error fetching user document:", error);
             setUser(null);
         } finally {
-            // Finished loading Firestore data
             setLoading(false);
         }
       } else if (!isFirebaseUserLoading) {
-        // No firebase user and firebase auth is done loading
         setUser(null);
         setLoading(false);
       }
     };
 
     fetchUserRole();
-  }, [firebaseUser, firestore, isFirebaseUserLoading]);
+  }, [firebaseUser, firestore, isFirebaseUserLoading, isClient]);
 
   const login = useCallback(async (email: string, password: string) => {
     if (!auth) throw new Error("Auth service not available");
@@ -125,6 +128,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [auth, router]);
 
   const value = { user, login, signup, logout, loading };
+  
+  if (!isClient) {
+    return (
+        <div className="flex h-screen w-full items-center justify-center">
+            <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-primary"></div>
+        </div>
+    );
+  }
 
   return (
     <AuthContext.Provider value={value}>
