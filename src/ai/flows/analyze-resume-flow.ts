@@ -11,7 +11,6 @@ import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'zod';
 
-
 // Initialize Genkit directly in this file
 const ai = genkit({
   plugins: [
@@ -57,7 +56,7 @@ export type AnalyzeResumeOutput = z.infer<typeof AnalyzeResumeOutputSchema>;
 
 export async function analyzeResume(input: AnalyzeResumeInput): Promise<AnalyzeResumeOutput> {
   const { candidates } = await ai.generate({
-    model: googleAI.model('gemini-1.5-flash-latest'),
+    model: googleAI.model('gemini-1.5-flash'),
     prompt: `You are a helpful career coach and resume analysis expert.
     Based on the provided skills, bio, and experience level, perform a detailed analysis.
 
