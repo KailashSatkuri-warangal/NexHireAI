@@ -105,7 +105,7 @@ export default function ProfilePage() {
   const hasAnalysis = !!profileData.analysis?.summary;
 
   return (
-    <div className="relative min-h-[calc(100vh-5rem)] w-full bg-secondary overflow-hidden">
+    <div className="relative min-h-[calc(100vh-5rem)] w-full bg-secondary">
         <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.1),rgba(255,255,255,0))]"></div>
         
         <div className="container mx-auto px-4 py-8 md:px-6">
