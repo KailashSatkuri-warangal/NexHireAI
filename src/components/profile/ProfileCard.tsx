@@ -1,6 +1,5 @@
 'use client';
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { EditProfileForm } from './EditProfileForm';
@@ -14,10 +13,11 @@ interface ProfileCardProps {
   onProfileUpdate: (data: Partial<User>) => Promise<void>;
   onRunAnalysis: () => Promise<void>;
   onFlip: () => void;
+  isEditing: boolean;
+  setIsEditing: (isEditing: boolean) => void;
 }
 
-export function ProfileCard({ profileData, onProfileUpdate, onRunAnalysis, onFlip }: ProfileCardProps) {
-  const [isEditing, setIsEditing] = useState(false);
+export function ProfileCard({ profileData, onProfileUpdate, onRunAnalysis, onFlip, isEditing, setIsEditing }: ProfileCardProps) {
 
   const handleSave = async (updatedData: Partial<User>) => {
     await onProfileUpdate(updatedData);
@@ -43,62 +43,53 @@ export function ProfileCard({ profileData, onProfileUpdate, onRunAnalysis, onFli
   const hasAnalysis = !!profileData.analysis?.summary;
 
   return (
-    <div className="relative perspective w-full">
-      <motion.div
-        className="relative w-full h-full preserve-3d transition-transform duration-700"
-        animate={{ rotateY: isEditing ? -180 : 0 }}
-      >
-        {/* View Face */}
-        <div className="absolute w-full h-full backface-hidden">
-          <div className="w-full rounded-3xl border border-white/10 bg-card/60 p-6 shadow-2xl backdrop-blur-xl dark:border-white/20 dark:bg-black/20">
-            <div className="flex flex-col md:flex-row items-center gap-6 mb-6">
-                <div className="relative group">
-                     <Avatar className="h-24 w-24 border-4 border-primary/50">
-                        <AvatarImage src={profileData.avatarUrl} alt={profileData.name} />
-                        <AvatarFallback className="text-3xl bg-muted">{profileData.name?.charAt(0).toUpperCase()}</AvatarFallback>
-                    </Avatar>
-                     <FileUpload
-                        onFileSelect={handleAvatarUpload}
-                        accept="image/*"
-                        id="avatar-upload-view"
-                    >
-                        <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                            <Pencil className="h-6 w-6 text-white" />
-                        </div>
-                    </FileUpload>
-                </div>
-
-              <div className="text-center md:text-left">
-                <h1 className="text-3xl font-bold">{profileData.name}</h1>
-                <p className="text-muted-foreground">{profileData.email}</p>
-              </div>
-              <div className="md:ml-auto flex flex-col sm:flex-row gap-2">
-                <Button onClick={() => setIsEditing(true)} variant="outline">Edit Profile</Button>
-                {profileData.role === 'candidate' && (
-                  hasAnalysis ? (
-                      <Button onClick={onFlip}>View AI Insights <ArrowRight className="ml-2 h-4 w-4" /></Button>
-                  ) : (
-                      <Button onClick={onRunAnalysis}><BrainCircuit className="mr-2 h-4 w-4" /> Analyze Profile</Button>
-                  )
-                )}
-              </div>
+      <div className="w-full rounded-3xl border border-white/10 bg-card/60 p-6 shadow-2xl backdrop-blur-xl dark:border-white/20 dark:bg-black/20">
+        {isEditing ? (
+            <div>
+                 <h2 className="text-2xl font-bold mb-6">Edit Profile</h2>
+                <EditProfileForm
+                profileData={profileData}
+                onSave={handleSave}
+                onCancel={() => setIsEditing(false)}
+                />
             </div>
-            <ViewProfile profileData={profileData} onResumeUpload={handleResumeUpload} />
-          </div>
-        </div>
+        ) : (
+            <div>
+                 <div className="flex flex-col md:flex-row items-center gap-6 mb-6">
+                    <div className="relative group">
+                        <Avatar className="h-24 w-24 border-4 border-primary/50">
+                            <AvatarImage src={profileData.avatarUrl} alt={profileData.name} />
+                            <AvatarFallback className="text-3xl bg-muted">{profileData.name?.charAt(0).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <FileUpload
+                            onFileSelect={handleAvatarUpload}
+                            accept="image/*"
+                            id="avatar-upload-view"
+                        >
+                            <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                                <Pencil className="h-6 w-6 text-white" />
+                            </div>
+                        </FileUpload>
+                    </div>
 
-        {/* Edit Face */}
-        <div className="absolute w-full h-full backface-hidden [transform:rotateY(180deg)]">
-          <div className="w-full h-full rounded-3xl border border-white/10 bg-card/60 p-6 shadow-2xl backdrop-blur-xl dark:border-white/20 dark:bg-black/20">
-            <h2 className="text-2xl font-bold mb-6">Edit Profile</h2>
-            <EditProfileForm
-              profileData={profileData}
-              onSave={handleSave}
-              onCancel={() => setIsEditing(false)}
-            />
-          </div>
-        </div>
-      </motion.div>
-    </div>
+                    <div className="text-center md:text-left">
+                        <h1 className="text-3xl font-bold">{profileData.name}</h1>
+                        <p className="text-muted-foreground">{profileData.email}</p>
+                    </div>
+                    <div className="md:ml-auto flex flex-col sm:flex-row gap-2">
+                        <Button onClick={() => setIsEditing(true)} variant="outline">Edit Profile</Button>
+                        {profileData.role === 'candidate' && (
+                        hasAnalysis ? (
+                            <Button onClick={onFlip}>View AI Insights <ArrowRight className="ml-2 h-4 w-4" /></Button>
+                        ) : (
+                            <Button onClick={onRunAnalysis}><BrainCircuit className="mr-2 h-4 w-4" /> Analyze Profile</Button>
+                        )
+                        )}
+                    </div>
+                </div>
+                <ViewProfile profileData={profileData} onResumeUpload={handleResumeUpload} />
+            </div>
+        )}
+      </div>
   );
 }

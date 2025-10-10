@@ -20,7 +20,8 @@ export default function ProfilePage() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const { firestore } = initializeFirebase();
-  const [isFlipped, setIsFlipped] = useState(false);
+  const [view, setView] = useState<'profile' | 'analysis'>('profile');
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -37,14 +38,15 @@ export default function ProfilePage() {
         if (docSnap.exists()) {
           const data = { id: docSnap.id, ...docSnap.data() } as UserType;
           setProfileData(data);
+           if (data.analysis?.summary) {
+            setView('analysis');
+          }
         } else {
-          // If no profile exists in Firestore, create a basic one.
-          // This can happen if user was created but profile creation failed.
           const basicProfile: UserType = {
             id: user.id,
             email: user.email,
             name: user.name || "New User",
-            role: 'candidate', // default role
+            role: 'candidate', 
           };
           await setDoc(doc(firestore, "users", user.id), basicProfile);
           setProfileData(basicProfile);
@@ -62,20 +64,11 @@ export default function ProfilePage() {
     fetchProfile();
   }, [fetchProfile]);
   
-  useEffect(() => {
-    if (profileData?.analysis?.summary) {
-        setIsFlipped(true); // Flip to analysis if it exists on load
-    } else {
-        setIsFlipped(false); // Default to front if no analysis
-    }
-  }, [profileData?.analysis?.summary]);
-
   const handleProfileUpdate = async (updatedData: Partial<UserType>) => {
     if (!user || !profileData) return;
 
     const userDocRef = doc(firestore, 'users', user.id);
     try {
-        // Optimistically update UI
         const newData = { ...profileData, ...updatedData, 
           ...(updatedData.analysis && { analysis: { ...profileData.analysis, ...updatedData.analysis }})
         };
@@ -85,7 +78,6 @@ export default function ProfilePage() {
         toast({ title: "Success", description: "Profile updated successfully!" });
     } catch (error) {
         console.error("Error updating profile:", error);
-        // Revert optimistic update on error
         setProfileData(profileData);
         toast({ title: "Error", description: "Could not update profile.", variant: "destructive" });
     }
@@ -118,7 +110,7 @@ export default function ProfilePage() {
                 summary: analysisResult
             }
         });
-        setIsFlipped(true); // Flip to show the new analysis
+        setView('analysis');
 
       } catch(error) {
          console.error("Error running analysis:", error);
@@ -140,38 +132,35 @@ export default function ProfilePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
             className="w-full max-w-4xl"
-            style={{ perspective: '1200px' }}
         >
-          <motion.div 
-            className="relative w-full h-full transition-transform duration-700"
-            style={{ transformStyle: 'preserve-3d' }}
-            animate={{ rotateY: isFlipped ? 180 : 0 }}
-          >
-            {/* Front of card: Profile View/Edit */}
-            <div className="absolute w-full h-full backface-hidden">
-                <ProfileCard 
-                    profileData={profileData} 
-                    onProfileUpdate={handleProfileUpdate} 
-                    onRunAnalysis={runAnalysis}
-                    onFlip={() => setIsFlipped(true)}
-                />
-            </div>
-
-            {/* Back of card: Personal Understanding */}
-            <div className="absolute w-full h-full backface-hidden" style={{ rotateY: 180 }}>
+          {view === 'profile' ? (
+              <ProfileCard 
+                  profileData={profileData} 
+                  onProfileUpdate={handleProfileUpdate} 
+                  onRunAnalysis={runAnalysis}
+                  onFlip={() => setView('analysis')}
+                  isEditing={isEditing}
+                  setIsEditing={setIsEditing}
+              />
+          ) : (
+             <>
               {profileData.analysis?.summary ? (
                 <PersonalUnderstanding 
                     analysis={profileData.analysis.summary} 
-                    onFlip={() => setIsFlipped(false)}
+                    onFlip={() => setView('profile')}
                 />
               ) : (
-                // This is a fallback for the brief moment before the card flips back after analysis is cleared
-                <div className="flex items-center justify-center h-full w-full rounded-3xl bg-card p-6">
-                    <p>No analysis data available. Run the analysis to see insights.</p>
-                </div>
+                 <ProfileCard 
+                  profileData={profileData} 
+                  onProfileUpdate={handleProfileUpdate} 
+                  onRunAnalysis={runAnalysis}
+                  onFlip={() => setView('analysis')}
+                  isEditing={isEditing}
+                  setIsEditing={setIsEditing}
+              />
               )}
-            </div>
-          </motion.div>
+            </>
+          )}
         </motion.div>
       </div>
     </div>
