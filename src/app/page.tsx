@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,28 +12,26 @@ import { Logo } from '@/components/logo';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 
-
 export default function LoginPage() {
-  const { login, user, loading } = useAuth();
+  const { login } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  useEffect(() => {
-    if (!loading && user) {
-      router.push('/dashboard');
-    }
-  }, [user, loading, router]);
-
+  // The AuthProvider will handle redirection now.
+  // The useEffect for redirection is removed from here.
 
   const handleLogin = async () => {
+    setIsLoggingIn(true);
     try {
       await login(email, password);
       toast({
         title: "Login Successful",
         description: "Redirecting to your dashboard...",
       });
+      // The redirect will be handled by the AuthProvider's logic.
     } catch (error: any) {
       console.error("Login failed:", error);
       toast({
@@ -41,16 +39,11 @@ export default function LoginPage() {
         title: "Login Failed",
         description: error.message || "An unexpected error occurred.",
       });
+      setIsLoggingIn(false);
     }
   };
 
-  if (loading || (!loading && user)) {
-     return (
-      <div className="flex h-screen w-full items-center justify-center bg-background">
-        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
+  // The AuthProvider shows a loading screen, so we don't need one here.
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4">
@@ -64,16 +57,16 @@ export default function LoginPage() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="user@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <Input id="email" type="email" placeholder="user@example.com" value={email} onChange={(e) => setEmail(e.target.value)} disabled={isLoggingIn} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={isLoggingIn} />
             </div>
           </div>
           <div className="mt-6">
-             <Button onClick={handleLogin} className="w-full">
-              Sign In
+             <Button onClick={handleLogin} className="w-full" disabled={isLoggingIn}>
+              {isLoggingIn ? 'Signing In...' : 'Sign In'}
             </Button>
           </div>
           <div className="mt-4 text-center text-sm">
