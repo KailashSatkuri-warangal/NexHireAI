@@ -12,14 +12,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    // If loading is finished and there's still no user, redirect to login.
     if (!loading && !user) {
       router.replace("/");
     }
   }, [user, loading, router]);
 
-  // While loading, show a spinner. This prevents rendering the children
-  // which might have their own auth checks.
   if (loading || !user) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
@@ -28,7 +25,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // If loading is done and we have a user, render the app layout.
   return (
     <div className="flex min-h-screen w-full">
       <Sidebar />
