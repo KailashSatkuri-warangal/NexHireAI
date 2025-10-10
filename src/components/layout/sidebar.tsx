@@ -10,7 +10,6 @@ import { Logo } from "@/components/logo";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "../ui/dropdown-menu";
 import { Button } from "../ui/button";
-import type { AppUser } from "@/lib/types";
 
 const navItems = {
   all: [
@@ -30,23 +29,14 @@ const navItems = {
   ],
 };
 
-const mockUser: AppUser = {
-  id: 'mock-user',
-  name: 'Admin User',
-  email: 'admin@example.com',
-  role: 'admin',
-  avatarUrl: 'https://i.pravatar.cc/150?u=admin-user',
-  xp: 1000
-};
-
 export function Sidebar() {
   const pathname = usePathname();
-  // const { user, logout } = useAuth(); // Auth disabled
-  const user = mockUser; // Using mock user
+  const { user } = useAuth();
   const router = useRouter();
 
   const handleLogout = () => {
-    // logout(); // Auth disabled
+    // In a real scenario, this would call a logout function.
+    // For now, it just redirects.
     router.push('/');
   }
 
