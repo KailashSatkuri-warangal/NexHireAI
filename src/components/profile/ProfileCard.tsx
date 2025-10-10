@@ -3,18 +3,17 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { ViewProfile } from './ViewProfile';
 import type { User } from '@/lib/types';
-import { BrainCircuit, Pencil, ArrowRight } from 'lucide-react';
+import { BrainCircuit, Pencil } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
 
 interface ProfileCardProps {
   profileData: User;
   onRunAnalysis: () => Promise<void>;
   onEdit: () => void;
-  onViewAnalysis: () => void;
   onAvatarUpload: (file: File) => void;
 }
 
-export function ProfileCard({ profileData, onRunAnalysis, onEdit, onViewAnalysis, onAvatarUpload }: ProfileCardProps) {
+export function ProfileCard({ profileData, onRunAnalysis, onEdit, onAvatarUpload }: ProfileCardProps) {
   
   const handleResumeUpload = async (file: File) => {
       // Mock upload and analysis trigger.
@@ -49,13 +48,9 @@ export function ProfileCard({ profileData, onRunAnalysis, onEdit, onViewAnalysis
                     <p className="text-muted-foreground">{profileData.email}</p>
                 </div>
                 <div className="md:ml-auto flex flex-col sm:flex-row gap-2">
-                    <Button onClick={onEdit} variant="outline">Edit Profile</Button>
-                    {profileData.role === 'candidate' && (
-                    hasAnalysis ? (
-                        <Button onClick={onViewAnalysis}>View AI Insights <ArrowRight className="ml-2 h-4 w-4" /></Button>
-                    ) : (
+                    <Button onClick={onEdit} variant="outline"><Pencil className="mr-2 h-4 w-4" />Edit Profile</Button>
+                    {profileData.role === 'candidate' && !hasAnalysis && (
                         <Button onClick={onRunAnalysis}><BrainCircuit className="mr-2 h-4 w-4" /> Analyze Profile</Button>
-                    )
                     )}
                 </div>
             </div>
