@@ -7,6 +7,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import type { AnalysisSummary, ExperienceLevel } from '@/lib/types';
+import { googleAI } from '@genkit-ai/google-genai';
 
 const AnalyzeResumeInputSchema = z.object({
   skills: z.array(z.string()).describe("A list of the candidate's skills."),
@@ -44,6 +45,7 @@ export async function analyzeResume(input: { skills: string[], bio: string, expe
 
 const prompt = ai.definePrompt({
   name: 'analyzeResumePrompt',
+  model: googleAI.model('gemini-1.5-flash-latest'),
   input: { schema: AnalyzeResumeInputSchema },
   output: { schema: AnalysisSummarySchema },
   prompt: `You are a helpful career coach and resume analysis expert.
