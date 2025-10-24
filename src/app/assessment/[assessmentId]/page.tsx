@@ -85,18 +85,22 @@ const AssessmentRunner = () => {
     startSubmitting(async () => {
       toast({ title: "Submitting Assessment", description: "Evaluating your answers and generating feedback. Please wait." });
 
-      const finalResponses: UserResponse[] = Object.values(responses).map(r => ({
-        ...r,
-        questionId: r.questionId || '',
-        timeTaken: (Date.now() - startTime!) / 1000 / assessment.questions.length, // Approximate
-        skill: r.skill || '',
-        difficulty: r.difficulty || 'Easy',
-      }));
-
-      const attemptShell = {
+      const finalResponses: UserResponse[] = assessment.questions.map(q => {
+        const response = responses[q.id] || {};
+        return {
+          questionId: q.id,
+          skill: q.skill,
+          difficulty: q.difficulty,
+          timeTaken: (Date.now() - startTime!) / 1000 / assessment.questions.length, // Approximate
+          ...response,
+        } as UserResponse;
+      });
+      
+      const attemptShell: Omit<AssessmentAttempt, 'id'> & { questions: Question[] } = {
           userId: user.id,
           assessmentId: assessment.id,
           roleId: assessment.roleId,
+          roleName: assessment.roleName,
           startedAt: startTime!,
           submittedAt: Date.now(),
           responses: finalResponses,
@@ -120,7 +124,7 @@ const AssessmentRunner = () => {
           const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
           const userFriendlyMessage = errorMessage.includes("429") 
             ? "Submission failed due to high traffic. Please wait a moment and try again."
-            : `An unexpected error occurred. ${errorMessage}`;
+            : `An unexpected error occurred. Please check your answers and try again. Details: ${errorMessage}`;
           toast({ title: "Submission Failed", description: userFriendlyMessage, variant: "destructive" });
       }
     });

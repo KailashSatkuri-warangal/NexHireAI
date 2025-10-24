@@ -30,9 +30,11 @@ const useAssessmentStoreInternal = create<AssessmentState>((set, get) => ({
   setAssessment: (assessment) => {
     const initialResponses: Record<string, Partial<UserResponse>> = {};
     assessment.questions.forEach(q => {
-      if (q.type === 'coding' && q.starterCode) {
-        initialResponses[q.id] = { code: q.starterCode, language: 'javascript' };
-      }
+      // Ensure each initial response also knows its questionId
+      initialResponses[q.id] = { 
+        questionId: q.id,
+        ...(q.type === 'coding' && q.starterCode && { code: q.starterCode, language: 'javascript' })
+      };
     });
 
     const newState = {
@@ -76,7 +78,7 @@ const useAssessmentStoreInternal = create<AssessmentState>((set, get) => ({
         ...state.responses,
         [questionId]: {
           ...state.responses[questionId],
-          questionId,
+          questionId, // **CRITICAL FIX**: Ensure questionId is always present
           skill: question.skill,
           difficulty: question.difficulty,
           ...response,
