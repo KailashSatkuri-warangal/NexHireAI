@@ -1,14 +1,15 @@
+
 'use client';
 
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, startTransition } from 'react';
-import { collection, getDocs, onSnapshot, DocumentData, Query } from 'firebase/firestore';
+import { collection, onSnapshot, Query } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
-import { Loader2, Zap } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import type { Role } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { populateRoles } from '@/ai/flows/populate-roles-flow';
@@ -31,37 +32,47 @@ export default function SkillAssessmentPage() {
     }
   }, [user, authIsLoading, router]);
 
-  useEffect(() => {
-    if (!firestore) return;
-
-    const rolesQuery: Query<DocumentData> = collection(firestore, 'roles');
-    const unsubscribe = onSnapshot(rolesQuery, (querySnapshot) => {
-      const rolesData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Role[];
-      setRoles(rolesData);
-      setIsLoading(false);
-    }, (error) => {
-      console.error("Error fetching roles:", error);
-      toast({ title: "Error", description: "Could not fetch roles.", variant: "destructive" });
-      setIsLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [firestore, toast]);
-  
   const handlePopulate = async () => {
     setIsPopulating(true);
-    toast({ title: 'Starting Database Population', description: 'AI is generating 30+ roles and sub-skills. This may take a few minutes.' });
+    toast({ title: 'Setting up NexHireAI for the first time...', description: 'AI is generating 30+ roles and sub-skills. This may take a moment.' });
     try {
       await populateRoles();
-      toast({ title: 'Success!', description: 'Database has been populated with professional roles.' });
+      toast({ title: 'Setup Complete!', description: 'You can now start an assessment.' });
     } catch (error) {
       console.error("Error populating roles:", error);
       toast({ title: "Population Failed", description: (error as Error).message, variant: "destructive" });
     } finally {
-      setIsPopulating(false);
+      // The onSnapshot listener will handle setting isPopulating to false by updating roles
     }
   };
 
+  useEffect(() => {
+    if (!firestore) return;
+
+    const rolesQuery: Query = collection(firestore, 'roles');
+    const unsubscribe = onSnapshot(rolesQuery, (querySnapshot) => {
+      if (querySnapshot.empty && !isPopulating) {
+        // Automatically populate roles if the collection is empty and not already in the process
+        handlePopulate();
+      } else {
+        const rolesData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Role[];
+        setRoles(rolesData);
+        setIsLoading(false);
+        if (isPopulating) {
+            setIsPopulating(false);
+        }
+      }
+    }, (error) => {
+      console.error("Error fetching roles:", error);
+      toast({ title: "Error", description: "Could not fetch roles.", variant: "destructive" });
+      setIsLoading(false);
+      setIsPopulating(false);
+    });
+
+    return () => unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firestore]);
+  
   const handleStartAssessment = (roleId: string, roleName: string) => {
     startTransition(async () => {
       setIsGenerating(roleId);
@@ -81,10 +92,13 @@ export default function SkillAssessmentPage() {
     });
   }
 
-  if (authIsLoading || isLoading) {
+  if (authIsLoading || isLoading || isPopulating) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-10rem)]">
+        <Loader2 className="h-8 w-8 animate-spin mb-4" />
+        <p className="text-muted-foreground">
+            { isPopulating ? "Preparing the platform for the first time..." : "Loading Assessments..." }
+        </p>
       </div>
     );
   }
@@ -100,12 +114,6 @@ export default function SkillAssessmentPage() {
             className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4"
         >
           <h1 className="text-4xl font-bold">Skill Assessments</h1>
-          {roles.length === 0 && (
-            <Button onClick={handlePopulate} disabled={isPopulating}>
-              {isPopulating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
-              Generate Sample Roles with AI
-            </Button>
-          )}
         </motion.div>
         
         {roles.length > 0 ? (
@@ -151,26 +159,7 @@ export default function SkillAssessmentPage() {
               </motion.div>
             ))}
           </motion.div>
-        ) : (
-           <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="text-center py-16"
-          >
-            <Card className="max-w-lg mx-auto bg-card/60 backdrop-blur-sm border-border/20 shadow-lg">
-                <CardHeader>
-                    <CardTitle>Welcome to NexHireAI Assessments</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-muted-foreground">
-                      It looks like there are no roles in the database yet.
-                      Click the "Generate Sample Roles" button to have our AI populate over 30 professional roles and their associated skills to get started.
-                    </p>
-                </CardContent>
-            </Card>
-           </motion.div>
-        )}
+        ) : null }
       </div>
     </div>
   );
