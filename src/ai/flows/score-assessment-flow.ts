@@ -80,7 +80,7 @@ export const scoreAssessmentFlow = ai.defineFlow(
              await wait(1000); // Wait for 1 second before making the API call to avoid rate limiting
              const { output: semanticScore } = await ai.generate({
                 prompt: `Evaluate if the user's answer is semantically equivalent to the correct answer. User Answer: "${response.answer}". Correct Answer: "${question.correctAnswer}". Respond with a single number between 0.0 (completely wrong) and 1.0 (perfectly correct).`,
-                output: { schema: z.number().min(0).max(1) },
+                output: { schema: z.number().min(0).max(1).nullable() },
                 config: { temperature: 0.2 }
             });
             // Handle null case from AI
