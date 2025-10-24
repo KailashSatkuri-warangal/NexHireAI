@@ -8,13 +8,13 @@ import { Footer } from "@/components/landing/footer";
 
 export default function HomePage() {
   return (
-    <>
+    <div className="bg-background">
       <Hero />
       <Features />
       <HowItWorks />
       <Testimonials />
       <Cta />
       <Footer />
-    </>
+    </div>
   );
 }
