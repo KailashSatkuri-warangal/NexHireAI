@@ -10,6 +10,16 @@ export function Navigation() {
       <Link href="/#home" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
         Home
       </Link>
+      <Link href="/#about" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+        About
+      </Link>
+       <Link href="/#features" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+        Features
+      </Link>
+      <Link href="/#how-it-works" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+        How It Works
+      </Link>
+      
       {user ? (
         <>
           <Link href="/dashboard" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
@@ -20,17 +30,9 @@ export function Navigation() {
           </Link>
         </>
       ) : (
-        <>
-          <Link href="/#about" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
-            About
-          </Link>
-          <Link href="/#features" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
-            Features
-          </Link>
-          <Link href="/#contact" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+        <Link href="/#contact" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
             Contact
-          </Link>
-        </>
+        </Link>
       )}
     </nav>
   );

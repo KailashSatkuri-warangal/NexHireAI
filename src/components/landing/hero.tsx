@@ -41,6 +41,7 @@ export function Hero() {
                     fill
                     className="object-cover"
                     data-ai-hint={heroImage.imageHint}
+                    priority
                 />
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent"></div>
@@ -80,12 +81,12 @@ export function Hero() {
                     <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
                         <motion.div whileHover={{ scale: 1.05, boxShadow: "0px 0px 20px hsl(var(--primary))" }} whileTap={{ scale: 0.95 }}>
                           <Button asChild size="lg" className="w-full sm:w-auto h-12 px-8 text-base">
-                            <Link href="/login">Get Started Free</Link>
+                            <Link href="/skill-assessment">Take Skill Test</Link>
                           </Button>
                         </motion.div>
                         <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                           <Button asChild size="lg" variant="outline" className="w-full sm:w-auto h-12 px-8 text-base">
-                            <Link href="#about">Learn More</Link>
+                            <Link href="/skill-assessment">Explore Roles</Link>
                           </Button>
                         </motion.div>
                     </div>
