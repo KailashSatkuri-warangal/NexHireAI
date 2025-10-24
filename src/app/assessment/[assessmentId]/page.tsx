@@ -12,12 +12,16 @@ import { Progress } from '@/components/ui/progress';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { AlertTriangle, Timer, Loader2, ChevronLeft, ChevronRight, CheckCircle, Send } from 'lucide-react';
+import { AlertTriangle, Timer, Loader2, ChevronLeft, ChevronRight, Send } from 'lucide-react';
+import { doc, setDoc } from 'firebase/firestore';
+import { initializeFirebase } from '@/firebase';
+import type { AssessmentAttempt } from '@/lib/types';
 
 const AssessmentRunner = () => {
   const router = useRouter();
   const params = useParams();
   const { toast } = useToast();
+  const { firestore } = initializeFirebase();
   
   const { user, isLoading: authLoading } = useAuth();
   const {
@@ -59,14 +63,47 @@ const AssessmentRunner = () => {
 
       if (remaining <= 0) {
         clearInterval(interval);
-        // Handle submission on timeout
-        toast({ title: "Time's up!", description: "Submitting your assessment." });
-        // handleSubmit();
+        toast({ title: "Time's up!", description: "Submitting your assessment automatically." });
+        handleSubmit();
       }
     }, 1000);
 
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startTime, assessment, toast]);
+
+  const handleSubmit = async () => {
+    if (!user || !assessment) {
+        toast({ title: "Error", description: "User or assessment data not found.", variant: "destructive" });
+        return;
+    }
+    
+    toast({ title: "Submitting Assessment", description: "Your answers are being saved. Please wait." });
+
+    const attempt: Omit<AssessmentAttempt, 'id'> = {
+        userId: user.id,
+        assessmentId: assessment.id,
+        roleId: assessment.roleId,
+        startedAt: startTime!,
+        submittedAt: Date.now(),
+        responses: Object.values(responses),
+        // Scoring fields will be added by a backend function
+    };
+    
+    try {
+        const attemptDocRef = doc(firestore, `users/${user.id}/assessments`, assessment.id);
+        await setDoc(attemptDocRef, attempt);
+        
+        toast({ title: "Assessment Submitted!", description: "Your results will be available on your dashboard shortly." });
+        reset();
+        router.push('/dashboard');
+
+    } catch (error) {
+        console.error("Error submitting assessment:", error);
+        toast({ title: "Submission Failed", description: (error as Error).message || "Could not save your assessment.", variant: "destructive" });
+    }
+  };
+
 
   if (authLoading || !assessment) {
     return (
@@ -87,20 +124,12 @@ const AssessmentRunner = () => {
   };
 
   const handleAnswerChange = (value: string) => {
+    const timeTaken = timeLeft ? assessment.totalTimeLimit - timeLeft : 0;
     if (currentQuestion.type === 'mcq') {
-       setResponse(currentQuestion.id, { answer: value });
+       setResponse(currentQuestion.id, { answer: value, timeTaken });
     } else if (currentQuestion.type === 'short') {
-       setResponse(currentQuestion.id, { answer: value });
+       setResponse(currentQuestion.id, { answer: value, timeTaken });
     }
-  }
-
-  const handleSubmit = () => {
-    // TODO: Implement submission logic to save to Firestore
-    toast({ title: "Submitting Assessment", description: "This is a placeholder. Answers are not yet saved." });
-    console.log("Final Responses:", responses);
-    // After submission...
-    // reset();
-    // router.push('/dashboard');
   }
 
   return (
@@ -177,3 +206,5 @@ const AssessmentRunner = () => {
 };
 
 export default AssessmentRunner;
+
+    
