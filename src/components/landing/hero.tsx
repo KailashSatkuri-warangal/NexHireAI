@@ -72,20 +72,20 @@ export function Hero() {
                     className="p-8 md:p-12 rounded-3xl border border-white/10 bg-card/60 shadow-2xl backdrop-blur-xl dark:border-white/20 dark:bg-black/20"
                 >
                     <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl">
-                        AI-Powered Skill Assessments
+                        Unleash Potential with AI-Powered Skill Assessments
                     </h1>
                     <p className="mt-6 text-lg text-muted-foreground md:text-xl">
-                        Unleash potential with dynamic, AI-generated assessments that adapt to every role.
+                        NexHireAI goes beyond resumes to reveal true candidate ability through dynamic, real-world challenges.
                     </p>
                     <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
                         <motion.div whileHover={{ scale: 1.05, boxShadow: "0px 0px 20px hsl(var(--primary))" }} whileTap={{ scale: 0.95 }}>
                           <Button asChild size="lg" className="w-full sm:w-auto h-12 px-8 text-base">
-                            <Link href="/skill-assessment">Start Assessment</Link>
+                            <Link href="/login">Get Started Free</Link>
                           </Button>
                         </motion.div>
                         <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                           <Button asChild size="lg" variant="outline" className="w-full sm:w-auto h-12 px-8 text-base">
-                            <Link href="#features">Learn More</Link>
+                            <Link href="#about">Learn More</Link>
                           </Button>
                         </motion.div>
                     </div>
