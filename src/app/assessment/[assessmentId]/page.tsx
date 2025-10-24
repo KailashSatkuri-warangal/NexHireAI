@@ -172,19 +172,9 @@ const AssessmentRunner = () => {
         </CardHeader>
         
         <div className="flex-grow">
-             {currentQuestion.type === 'coding' ? (
-                <CodeEditor 
-                    question={currentQuestion}
-                    code={currentResponse?.code || currentQuestion.starterCode || ''}
-                    onCodeChange={(code) => setResponse(currentQuestion.id, { code })}
-                    language={currentResponse?.language || 'javascript'}
-                    onLanguageChange={(lang) => setResponse(currentQuestion.id, { language: lang })}
-                    executionResult={currentResponse?.executionResult}
-                    onRunComplete={(result) => setResponse(currentQuestion.id, { executionResult: result })}
-                />
-            ) : (
-            <CardContent className="p-6 md:p-8">
-                <h2 className="text-xl font-semibold mb-4">{currentQuestion.questionText}</h2>
+            <div className="flex flex-col h-full">
+              <div className="p-6 overflow-y-auto">
+                 <h2 className="text-xl font-semibold mb-4">{currentQuestion.questionText}</h2>
 
                 {currentQuestion.type === 'mcq' && (
                     <RadioGroup 
@@ -210,8 +200,19 @@ const AssessmentRunner = () => {
                         onChange={(e) => handleAnswerChange(e.target.value)}
                     />
                 )}
-            </CardContent>
-            )}
+                 {currentQuestion.type === 'coding' && (
+                  <CodeEditor 
+                      question={currentQuestion}
+                      code={currentResponse?.code || currentQuestion.starterCode || ''}
+                      onCodeChange={(code) => setResponse(currentQuestion.id, { code })}
+                      language={currentResponse?.language || 'javascript'}
+                      onLanguageChange={(lang) => setResponse(currentQuestion.id, { language: lang })}
+                      executionResult={currentResponse?.executionResult}
+                      onRunComplete={(result) => setResponse(currentQuestion.id, { executionResult: result })}
+                  />
+              )}
+              </div>
+            </div>
         </div>
 
         <CardFooter className="flex justify-between border-t pt-6 sticky bottom-0 bg-card/80 backdrop-blur-sm">
