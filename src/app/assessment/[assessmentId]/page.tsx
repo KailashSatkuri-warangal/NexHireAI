@@ -83,12 +83,12 @@ const AssessmentRunner = () => {
     }
     
     startSubmitting(async () => {
-      toast({ title: "Submitting Assessment", description: "Evaluating your answers and generating feedback. Please wait." });
+      toast({ title: "Submitting Assessment", description: "Evaluating your answers and generating feedback. This may take a minute." });
 
-      const finalResponses = Object.values(responses).map(response => ({
+      const finalResponses: UserResponse[] = Object.values(responses).map(response => ({
         ...response,
         timeTaken: (Date.now() - startTime) / 1000 / assessment.questions.length, // Approximate
-      }));
+      } as UserResponse));
 
       const attemptShell: Omit<AssessmentAttempt, 'id'> & { questions: Question[] } = {
           userId: user.id,
@@ -96,7 +96,7 @@ const AssessmentRunner = () => {
           roleId: assessment.roleId,
           startedAt: startTime,
           submittedAt: Date.now(),
-          responses: finalResponses as UserResponse[],
+          responses: finalResponses,
           questions: assessment.questions, // Pass full question data for scoring
       };
 
@@ -126,7 +126,7 @@ const AssessmentRunner = () => {
           console.error("Error submitting and scoring assessment:", error);
           const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
           const userFriendlyMessage = errorMessage.includes("429") 
-            ? "Submission failed due to high traffic. Please wait a moment and try again."
+            ? "Submission failed due to high traffic. This can happen during scoring. Please wait a moment and try again."
             : `An unexpected error occurred. Please check your answers and try again. Details: ${errorMessage}`;
           toast({ title: "Submission Failed", description: userFriendlyMessage, variant: "destructive" });
       }
@@ -220,7 +220,7 @@ const AssessmentRunner = () => {
         </div>
 
         <CardFooter className="flex justify-between border-t pt-6 sticky bottom-0 bg-card/80 backdrop-blur-sm">
-            <Button variant="outline" onClick={prevQuestion} disabled={currentQuestionIndex === 0 || isSubmitting}>
+            <Button variant="outline" onClick={prevQuestion} disabled={isSubmitting}>
                 <ChevronLeft className="mr-2 h-4 w-4" /> Previous
             </Button>
             

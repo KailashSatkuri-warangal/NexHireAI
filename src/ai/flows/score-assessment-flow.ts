@@ -70,7 +70,7 @@ export const scoreAssessmentFlow = ai.defineFlow(
          if (response.answer?.trim().toLowerCase() === question.correctAnswer?.trim().toLowerCase()) {
             correctnessFactor = 1;
          } else if (response.answer) { // Only call AI if there is an answer
-             await wait(1000); // Wait for 1 second before making the API call to avoid rate limiting
+             await wait(1500); // Wait for 1.5 seconds before making the API call to avoid rate limiting
              const { output: semanticScore } = await ai.generate({
                 prompt: `Evaluate if the user's answer is semantically equivalent to the correct answer. User Answer: "${response.answer}". Correct Answer: "${question.correctAnswer}". Respond with a single number between 0.0 (completely wrong) and 1.0 (perfectly correct).`,
                 output: { schema: z.number().min(0).max(1).nullable() },
@@ -113,7 +113,7 @@ export const scoreAssessmentFlow = ai.defineFlow(
     }
     
     // Generate AI Feedback
-     await wait(1000); // Add a small delay before the final call
+     await wait(1500); // Add a delay before the final call
      const { output: aiFeedback } = await ai.generate({
         prompt: `A candidate has just completed an assessment. Their final score is ${finalScore.toFixed(2)}/100.
         Their performance by skill was: ${JSON.stringify(finalSkillScores)}.
