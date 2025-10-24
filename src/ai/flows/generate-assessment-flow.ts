@@ -11,7 +11,7 @@ import { initializeFirebaseForServer } from '@/firebase/server-init';
 import type { Question, Role, Assessment } from '@/lib/types';
 
 // Zod schema for a single generated question
-const QuestionSchema = z.object({
+const GeneratedQuestionSchema = z.object({
   questionText: z.string(),
   type: z.enum(['mcq', 'short', 'coding']),
   options: z.array(z.string()).optional(),
@@ -23,7 +23,7 @@ const QuestionSchema = z.object({
 });
 
 // Zod schema for questions for a SINGLE skill
-const QuestionsForSkillSchema = z.array(QuestionSchema).length(5);
+const QuestionsForSkillSchema = z.array(GeneratedQuestionSchema).length(5);
 
 
 const generateAssessmentFlow = ai.defineFlow(
@@ -45,7 +45,7 @@ const generateAssessmentFlow = ai.defineFlow(
     const { subSkills, name: roleName } = roleData;
     const questionsCollectionRef = collection(firestore, 'roles', roleId, 'questions');
 
-    // 2. Check if questions already exist for this role
+    // 2. Check if enough questions already exist for this role
     const existingQuestionsQuery = query(questionsCollectionRef, limit(30));
     const existingQuestionsSnap = await getDocs(existingQuestionsQuery);
     
@@ -73,7 +73,8 @@ const generateAssessmentFlow = ai.defineFlow(
           - Create a mix of difficulties: 2 Easy, 2 Medium, 1 Hard.
           - For MCQs, create scenario-based questions, not simple definitions. Provide 4 options. 'correctAnswer' must be the full text of the correct option.
           - For Short Answer, ask for one-line code fixes or brief conceptual comparisons. 'correctAnswer' should be the ideal answer.
-          - For Coding, provide a clear problem statement and 3-5 test cases.
+          - For Coding, provide a clear problem statement and 3-5 test cases. The 'correctAnswer' field is not needed for coding questions.
+          - Ensure all fields in the schema are present for each question, even if optional (e.g., 'options: []' for non-mcq).
 
           Adhere strictly to the JSON output schema, which is an array of 5 question objects.`,
           output: { schema: QuestionsForSkillSchema },
@@ -102,6 +103,7 @@ const generateAssessmentFlow = ai.defineFlow(
           
           **INSTRUCTIONS:**
           - Create a mix of difficulties: 2 Easy, 2 Medium, 1 Hard.
+          - Ensure all fields in the schema are present for each question.
           - Adhere strictly to the JSON output schema, which is an array of 5 question objects.`,
           output: { schema: QuestionsForSkillSchema },
           config: { temperature: 0.8 }
