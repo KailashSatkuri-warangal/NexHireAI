@@ -77,6 +77,60 @@
       "description": "Abstract hero background image",
       "imageUrl": "https://images.unsplash.com/photo-1533134486753-c833f0ed4866?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwzODQ5ODR8MHwxfGFsbHx8fHx8fHx8fDE2ODk2ODU5NTc&ixlib=rb-4.0.3&q=80&w=1080",
       "imageHint": "abstract dark"
+    },
+    {
+      "id": "rive-bg",
+      "description": "Abstract background for Rive card",
+      "imageUrl": "https://images.unsplash.com/photo-1581291518857-4e27b48ff24e?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "imageHint": "interactive vector"
+    },
+    {
+      "id": "blender-bg",
+      "description": "Abstract background for Blender card",
+      "imageUrl": "https://images.unsplash.com/photo-1622737133809-d95047b9e673?q=80&w=1932&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "imageHint": "3d model"
+    },
+    {
+      "id": "maya-bg",
+      "description": "Abstract background for Maya card",
+      "imageUrl": "https://images.unsplash.com/photo-1541701494587-cb58502866ab?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "imageHint": "cgi vfx"
+    },
+    {
+      "id": "3dsmax-bg",
+      "description": "Abstract background for 3ds Max card",
+      "imageUrl": "https://images.unsplash.com/photo-1617994422223-b359f131154b?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "imageHint": "architectural wireframe"
+    },
+    {
+      "id": "c4d-bg",
+      "description": "Abstract background for Cinema 4D card",
+      "imageUrl": "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "imageHint": "motion graphics"
+    },
+    {
+      "id": "houdini-bg",
+      "description": "Abstract background for Houdini card",
+      "imageUrl": "https://images.unsplash.com/photo-1550684376-efcbd6e3f031?q=80&w=1974&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "imageHint": "procedural particles"
+    },
+    {
+      "id": "unity-bg",
+      "description": "Abstract background for Unity card",
+      "imageUrl": "https://images.unsplash.com/photo-1583344655459-71a35543d3b7?q=80&w=1964&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "imageHint": "game engine"
+    },
+    {
+      "id": "unreal-bg",
+      "description": "Abstract background for Unreal Engine card",
+      "imageUrl": "https://images.unsplash.com/photo-1555412654-72a54b3c0598?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "imageHint": "photorealistic render"
+    },
+    {
+      "id": "mixamo-bg",
+      "description": "Abstract background for Mixamo card",
+      "imageUrl": "https://images.unsplash.com/photo-1608181579895-4679785897b0?q=80&w=1931&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "imageHint": "character rig"
     }
   ]
 }

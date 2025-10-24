@@ -1,3 +1,4 @@
+
 'use client';
 
 import { motion } from 'framer-motion';
@@ -43,7 +44,7 @@ export function HowItWorks() {
   };
 
   return (
-    <section id="about" className="py-16 sm:py-24 bg-background/50">
+    <section id="how-it-works" className="py-16 sm:py-24 bg-background/50 hidden">
       <div className="container mx-auto px-4 md:px-6">
         <div className="text-center">
           <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl">How It Works</h2>
@@ -79,3 +80,5 @@ export function HowItWorks() {
     </section>
   );
 }
+
+    

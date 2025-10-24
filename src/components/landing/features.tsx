@@ -50,7 +50,7 @@ export function Features() {
   const y = useTransform(scrollYProgress, [0, 1], ['-10%', '10%']);
 
   return (
-    <section id="features" className="py-16 sm:py-24" ref={targetRef}>
+    <section id="features" className="py-16 sm:py-24 hidden" ref={targetRef}>
       <div className="container mx-auto px-4 md:px-6">
         <div className="text-center">
           <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl">Everything You Need, and More</h2>
@@ -71,7 +71,7 @@ export function Features() {
               transition={{ duration: 0.5, delay: index * 0.1 }}
               style={{ y }}
             >
-              <Card className="h-full bg-card/60 backdrop-blur-sm border-border/20 shadow-lg transition-all duration-300 hover:border-primary/60 hover:shadow-primary/10 hover:-translate-y-1 overflow-hidden">
+              <Card className="h-full bg-card/60 backdrop-blur-sm border-border/20 shadow-lg transition-all duration-300 hover:border-primary/60 hover:shadow-primary/10 hover:-translate-y-1 overflow-hidden group">
                 {image && (
                     <div className="aspect-video overflow-hidden">
                         <Image
@@ -98,3 +98,5 @@ export function Features() {
     </section>
   );
 }
+
+    
