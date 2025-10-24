@@ -14,57 +14,42 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Play, CheckCircle, XCircle, AlertTriangle, Clock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { runCode } from '@/ai/flows/run-code-flow';
-import type { Question, CodeExecutionResult } from '@/lib/types';
-import { ScrollArea } from '@/components/ui/scroll-area';
-
-
-const languages = [
-    { value: 'javascript', label: 'JavaScript' },
-    { value: 'typescript', label: 'TypeScript' },
-    { value: 'python', label: 'Python' },
-    { value: 'java', label: 'Java' },
-    { value: 'c', label: 'C' },
-    { value: 'cpp', label: 'C++' },
-    { value: 'csharp', label: 'C#' },
-    { value: 'go', label: 'Go' },
-    { value: 'rust', label: 'Rust' },
-    { value: 'kotlin', label: 'Kotlin' },
-    { value: 'swift', label: 'Swift' },
-    { value: 'php', label: 'PHP' },
-    { value: 'ruby', label: 'Ruby' },
-    { value: 'r', label: 'R' },
-    { value: 'dart', label: 'Dart' },
-    { value: 'sql', label: 'SQL' },
-];
+import { runAllCode } from '@/ai/flows/run-all-code-flow';
+import type { Question, CodeExecutionResult, UserResponse } from '@/lib/types';
 
 interface CodeEditorProps {
     question: Question;
-    code: string;
-    onCodeChange: (code: string) => void;
-    language: string;
-    onLanguageChange: (language: string) => void;
-    executionResult?: CodeExecutionResult[];
-    onRunComplete: (result: CodeExecutionResult[]) => void;
+    response: Partial<UserResponse>;
+    onResponseChange: (change: Partial<UserResponse>) => void;
 }
 
-export function CodeEditor({ question, code, onCodeChange, language, onLanguageChange, executionResult, onRunComplete }: CodeEditorProps) {
+export function CodeEditor({ question, response, onResponseChange }: CodeEditorProps) {
     const [isPending, startTransition] = useTransition();
     const [activeTab, setActiveTab] = useState('testcases');
     const { toast } = useToast();
+
+    const code = response.code || question.starterCode || '';
+    const language = response.language || 'javascript';
+    const executionResult = response.executionResult;
 
     const handleRunCode = () => {
         startTransition(async () => {
             toast({ title: 'Running Code...', description: 'Please wait while we evaluate your solution.' });
             try {
-                const result = await runCode({
+                const result = await runAllCode({ submissions: [{
+                    questionId: question.id,
                     code,
                     language,
                     testCases: question.testCases || [],
-                });
-                onRunComplete(result);
-                setActiveTab('output');
-                toast({ title: 'Execution Finished!', description: 'Check the output panel for results.' });
+                }]});
+
+                if (result[question.id]) {
+                    onResponseChange({ executionResult: result[question.id] as CodeExecutionResult[] });
+                    setActiveTab('output');
+                    toast({ title: 'Execution Finished!', description: 'Check the output panel for results.' });
+                } else {
+                    throw new Error("Evaluation result was not found in the AI's response.");
+                }
             } catch (error) {
                 console.error('Code execution failed:', error);
                 toast({ title: 'Execution Error', description: (error as Error).message || 'An unexpected error occurred.', variant: 'destructive' });
@@ -128,14 +113,18 @@ export function CodeEditor({ question, code, onCodeChange, language, onLanguageC
 
             <div className="h-[60vh] flex flex-col border-t mt-4">
                 <div className="flex-shrink-0 p-2 border-b flex justify-between items-center bg-background/80 sticky top-[80px] z-10">
-                    <Select value={language} onValueChange={onLanguageChange}>
+                    <Select value={language} onValueChange={(lang) => onResponseChange({ language: lang })}>
                         <SelectTrigger className="w-[180px]">
                             <SelectValue placeholder="Select Language" />
                         </SelectTrigger>
                         <SelectContent>
-                            {languages.map(lang => (
-                                <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
-                            ))}
+                            <SelectItem value="javascript">JavaScript</SelectItem>
+                            <SelectItem value="typescript">TypeScript</SelectItem>
+                            <SelectItem value="python">Python</SelectItem>
+                            <SelectItem value="java">Java</SelectItem>
+                            <SelectItem value="csharp">C#</SelectItem>
+                            <SelectItem value="go">Go</SelectItem>
+                            <SelectItem value="rust">Rust</SelectItem>
                         </SelectContent>
                     </Select>
 
@@ -150,7 +139,7 @@ export function CodeEditor({ question, code, onCodeChange, language, onLanguageC
                         language={language}
                         theme="vs-dark"
                         value={code}
-                        onChange={(value) => onCodeChange(value || '')}
+                        onChange={(value) => onResponseChange({ code: value || '' })}
                         options={{
                             minimap: { enabled: false },
                             fontSize: 14,
@@ -162,3 +151,5 @@ export function CodeEditor({ question, code, onCodeChange, language, onLanguageC
         </div>
     )
 }
+
+    

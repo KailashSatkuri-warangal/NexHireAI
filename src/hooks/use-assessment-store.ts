@@ -15,6 +15,7 @@ interface AssessmentState {
   prevQuestion: () => void;
   goToQuestion: (index: number) => void;
   setResponse: (questionId: string, response: Partial<UserResponse>) => void;
+  setMultipleResponses: (updates: Record<string, Partial<UserResponse>>) => void;
   reset: () => void;
   isHydrated: boolean; // To check if state has been loaded from storage
   _rehydrate: () => void;
@@ -30,9 +31,10 @@ const useAssessmentStoreInternal = create<AssessmentState>((set, get) => ({
   setAssessment: (assessment) => {
     const initialResponses: Record<string, Partial<UserResponse>> = {};
     assessment.questions.forEach(q => {
-      // Ensure each initial response also knows its questionId
       initialResponses[q.id] = { 
         questionId: q.id,
+        skill: q.skill,
+        difficulty: q.difficulty,
         ...(q.type === 'coding' && q.starterCode && { code: q.starterCode, language: 'javascript' })
       };
     });
@@ -78,13 +80,26 @@ const useAssessmentStoreInternal = create<AssessmentState>((set, get) => ({
         ...state.responses,
         [questionId]: {
           ...state.responses[questionId],
-          questionId, // **CRITICAL FIX**: Ensure questionId is always present
+          questionId: question.id,
           skill: question.skill,
           difficulty: question.difficulty,
           ...response,
         },
       },
     }));
+  },
+
+  setMultipleResponses: (updates) => {
+    set((state) => {
+      const newResponses = { ...state.responses };
+      for (const [questionId, update] of Object.entries(updates)) {
+        newResponses[questionId] = {
+          ...newResponses[questionId],
+          ...update,
+        };
+      }
+      return { responses: newResponses };
+    });
   },
 
   reset: () => {
@@ -102,7 +117,6 @@ const useAssessmentStoreInternal = create<AssessmentState>((set, get) => ({
       const savedState = localStorage.getItem(ASSESSMENT_STORAGE_KEY);
       if (savedState) {
         const parsedState = JSON.parse(savedState);
-        // Dont rehydrate if the assessment is too old (e.g. > 3 hours)
         const threeHours = 3 * 60 * 60 * 1000;
         if (parsedState.startTime && (Date.now() - parsedState.startTime < threeHours)) {
            set({ ...parsedState });
@@ -118,7 +132,6 @@ const useAssessmentStoreInternal = create<AssessmentState>((set, get) => ({
   },
 }));
 
-// This is the hook we'll use in our components
 export const useAssessmentStore = () => {
   const store = useAssessmentStoreInternal();
   const [isClient, setIsClient] = useState(false);
@@ -130,7 +143,6 @@ export const useAssessmentStore = () => {
     }
   }, [store]);
 
-  // Save to localStorage on every state change, but only on the client
   useEffect(() => {
     if (isClient && store.assessment) {
       const { assessment, responses, currentQuestionIndex, startTime } = store;
@@ -142,5 +154,6 @@ export const useAssessmentStore = () => {
   return store;
 };
 
-// Expose the raw reset function if needed outside of React components
 export const resetAssessmentStore = () => useAssessmentStoreInternal.getState().reset();
+
+    
