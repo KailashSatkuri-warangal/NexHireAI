@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -27,11 +26,11 @@ export default function AuthPage() {
             backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'],
           }}
           transition={{
-            duration: 15,
+            duration: 25,
             ease: 'linear',
             repeat: Infinity,
           }}
-          className="h-full w-full bg-[length:200%_200%] bg-gradient-to-br from-primary/30 via-accent/30 to-secondary"
+          className="h-full w-full bg-[length:200%_200%] bg-gradient-to-br from-primary/20 via-background to-accent/20"
         />
         <div className="absolute inset-0 bg-[url(/grid.svg)] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]"></div>
       </div>
@@ -59,12 +58,12 @@ export default function AuthPage() {
                     transition={{ duration: 0.5, delay: 0.2 }}
                 >
                     <h2 className="text-5xl font-bold leading-tight text-foreground">
-                        {isLoginMode ? "Your Career Journey Starts Here." : "Recruit the best. Get hired faster."}
+                        {isLoginMode ? "Unlock Your Potential." : "Build Your Dream Team."}
                     </h2>
                     <p className="mt-4 text-lg text-muted-foreground">
                         {isLoginMode 
-                            ? "Log in to continue finding the best talent or the perfect role."
-                            : "Whether you’re a Candidate or a Recruiter, we’ve got you covered."
+                            ? "Log in to access your dashboard and continue your journey."
+                            : "Join the next generation of hiring and career development."
                         }
                     </p>
                 </motion.div>
@@ -106,7 +105,7 @@ export default function AuthPage() {
 }
 
 const AuthCard = ({ children }: { children: React.ReactNode }) => (
-  <div className="w-full h-full rounded-3xl border border-white/20 bg-card/80 p-8 shadow-2xl backdrop-blur-lg dark:border-white/20 dark:bg-black/30">
+  <div className="w-full h-full rounded-3xl border border-border/20 bg-card/70 p-8 shadow-2xl backdrop-blur-lg dark:bg-black/30 flex flex-col">
     {children}
   </div>
 );
@@ -139,7 +138,6 @@ function LoginForm({ setIsLoginMode }: { setIsLoginMode: (isLogin: boolean) => v
     };
     
     return (
-      <AnimatePresence>
         <motion.form
             onSubmit={handleSubmit}
             initial={{ opacity: 0 }}
@@ -156,8 +154,8 @@ function LoginForm({ setIsLoginMode }: { setIsLoginMode: (isLogin: boolean) => v
             </div>
             
             <div className="grid gap-6">
-              <AuthInput id="email" name="email" type="email" placeholder="m@example.com" icon={<Mail className="h-4 w-4" />} required />
-              <AuthInput id="password" name="password" type="password" placeholder="Password" icon={<KeyRound className="h-4 w-4" />} required />
+              <AuthInput id="email" name="email" type="email" placeholder="m@example.com" icon={<Mail />} required />
+              <AuthInput id="password" name="password" type="password" placeholder="Password" icon={<KeyRound />} required />
             </div>
 
             <div className="mt-4 text-right">
@@ -169,7 +167,7 @@ function LoginForm({ setIsLoginMode }: { setIsLoginMode: (isLogin: boolean) => v
             <div className="mt-8 space-y-4">
                 <AuthButton type="submit" disabled={isLoading}>{isLoading ? 'Logging in...' : 'Login'}</AuthButton>
                 <AuthButton variant="outline" type="button" disabled={isLoading}>
-                    <Chrome className="mr-2 h-4 w-4" />
+                    <Chrome className="mr-2" />
                     Login with Google
                 </AuthButton>
             </div>
@@ -181,7 +179,6 @@ function LoginForm({ setIsLoginMode }: { setIsLoginMode: (isLogin: boolean) => v
                 </button>
             </div>
         </motion.form>
-      </AnimatePresence>
     );
 }
   
@@ -216,7 +213,6 @@ function SignupForm({ setIsLoginMode }: { setIsLoginMode: (isLogin: boolean) => 
     };
     
     return (
-        <AnimatePresence>
           <motion.form
             onSubmit={handleSubmit}
             initial={{ opacity: 0 }}
@@ -232,9 +228,9 @@ function SignupForm({ setIsLoginMode }: { setIsLoginMode: (isLogin: boolean) => 
               </p>
             </div>
             <div className="grid gap-4">
-                <AuthInput id="name" name="name" placeholder="John Doe" icon={<UserCircle className="h-4 w-4" />} required />
-                <AuthInput id="email" name="email" type="email" placeholder="m@example.com" icon={<Mail className="h-4 w-4" />} required />
-                <AuthInput id="password" name="password" type="password" placeholder="Password" icon={<KeyRound className="h-4 w-4" />} required />
+                <AuthInput id="name" name="name" placeholder="John Doe" icon={<UserCircle />} required />
+                <AuthInput id="email" name="email" type="email" placeholder="m@example.com" icon={<Mail />} required />
+                <AuthInput id="password" name="password" type="password" placeholder="Password" icon={<KeyRound />} required />
                 
                 <div className="grid gap-2 pt-2">
                   <Label className="text-muted-foreground text-sm">What best describes you?</Label>
@@ -248,7 +244,7 @@ function SignupForm({ setIsLoginMode }: { setIsLoginMode: (isLogin: boolean) => 
             <div className="mt-6 space-y-3">
                 <AuthButton type="submit" disabled={isLoading}>{isLoading ? 'Creating account...' : 'Create an account'}</AuthButton>
                 <AuthButton variant="outline" type="button" disabled={isLoading}>
-                    <Chrome className="mr-2 h-4 w-4" />
+                    <Chrome className="mr-2" />
                     Sign up with Google
                 </AuthButton>
             </div>
@@ -260,16 +256,15 @@ function SignupForm({ setIsLoginMode }: { setIsLoginMode: (isLogin: boolean) => 
               </button>
             </div>
           </motion.form>
-        </AnimatePresence>
     );
 }
 
 const AuthInput = ({ id, name, type = 'text', placeholder, icon, required = false }: { id: string; name: string; type?: string; placeholder: string; icon: React.ReactNode; required?: boolean; }) => (
     <div className="relative">
-      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">
+      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground [&>svg]:h-4 [&>svg]:w-4">
         {icon}
       </div>
-      <Input id={id} name={name} type={type} placeholder={placeholder} required={required} className="pl-10 h-12 border-border bg-background/50 transition-shadow duration-300 focus-visible:ring-primary focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:shadow-[0_0_15px_rgba(var(--accent-rgb),0.5)] dark:border-white/20 dark:bg-black/20 dark:focus:bg-black/30" />
+      <Input id={id} name={name} type={type} placeholder={placeholder} required={required} className="pl-10 h-12 bg-background/50 transition-all duration-300 focus-visible:bg-background focus-visible:ring-primary focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:shadow-[0_0_15px_hsl(var(--primary)/0.5)]" />
     </div>
 );
 
@@ -278,7 +273,7 @@ const AuthButton = ({ children, variant = 'default', type, disabled }: { childre
         <Button 
             type={type}
             disabled={disabled}
-            className="w-full h-12 text-base transition-shadow duration-300 hover:shadow-primary/50 hover:shadow-[0_0_15px_rgba(var(--accent-rgb),0.4)]"
+            className="w-full h-12 text-base transition-shadow duration-300 hover:shadow-primary/50 hover:shadow-[0_0_15px_hsl(var(--primary)/0.4)]"
             variant={variant}
         >
             {children}
@@ -291,12 +286,10 @@ const RoleOption = ({ value, icon, label }: { value: string; icon: React.ReactNo
       <RadioGroupItem value={value} id={value} className="peer sr-only" />
       <Label
         htmlFor={value}
-        className="flex h-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-border bg-background/50 p-4 shadow-lg transition-all hover:bg-background/80 hover:shadow-primary/30 peer-data-[state=checked]:border-primary peer-data-[state=checked]:shadow-primary/50 peer-data-[state=checked]:shadow-xl dark:border-white/20 dark:bg-black/30 dark:hover:bg-black/40 [transform:translateZ(0)]"
+        className="flex h-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-border bg-background/50 p-4 shadow-lg transition-all hover:bg-background/80 hover:shadow-primary/20 peer-data-[state=checked]:border-primary peer-data-[state=checked]:shadow-primary/40 peer-data-[state=checked]:shadow-xl [transform:translateZ(0)]"
       >
         <div className="mb-2 text-primary [transform:translateZ(20px)]">{icon}</div>
         <span className="font-semibold text-foreground [transform:translateZ(10px)]">{label}</span>
       </Label>
     </motion.div>
 );
-
-    

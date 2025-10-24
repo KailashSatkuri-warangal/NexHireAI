@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useAuth } from '@/hooks/use-auth';
@@ -8,10 +7,11 @@ import { collection, query, orderBy, onSnapshot, Query } from 'firebase/firestor
 import { initializeFirebase } from '@/firebase';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, Trophy, BarChart, CheckCircle, BrainCircuit } from 'lucide-react';
+import { Loader2, Trophy, BarChart, BrainCircuit } from 'lucide-react';
 import type { AssessmentAttempt } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, Radar, PolarRadiusAxis } from 'recharts';
+import { Badge } from '@/components/ui/badge';
 
 export default function DashboardPage() {
   const { user, isLoading } = useAuth();
@@ -48,7 +48,7 @@ export default function DashboardPage() {
   const skillScoresData = useMemo(() => {
     if (!latestAttempt?.skillScores) return [];
     return Object.entries(latestAttempt.skillScores).map(([skill, score]) => ({
-        subject: skill,
+        subject: skill.charAt(0).toUpperCase() + skill.slice(1),
         A: score,
         fullMark: 100,
     }));
@@ -89,7 +89,7 @@ export default function DashboardPage() {
           Welcome, {user?.name}
         </motion.h1>
         
-        <AnimatePresence>
+        <AnimatePresence mode="wait">
             {!latestAttempt ? (
                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                     <Card className="bg-card/60 backdrop-blur-sm border-border/20 shadow-lg text-center p-8">
@@ -156,7 +156,7 @@ export default function DashboardPage() {
                                 <CardContent className="h-[300px]">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <RadarChart cx="50%" cy="50%" outerRadius="80%" data={skillScoresData}>
-                                            <PolarGrid />
+                                            <PolarGrid stroke="hsl(var(--border))" />
                                             <PolarAngleAxis dataKey="subject" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
                                             <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
                                             <Radar name="Score" dataKey="A" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.6} />
