@@ -50,7 +50,7 @@ export const scoreAssessmentFlow = ai.defineFlow(
             return {
                 questionId: r.questionId,
                 userAnswer: r.answer,
-                correctAnswer: q.correctAnswer,
+                correctAnswer: q.correctAnswer, // This is now safe because of the filter above
             };
         });
         
