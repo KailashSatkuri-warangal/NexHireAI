@@ -11,15 +11,8 @@ import type { AssessmentAttempt, Question, UserResponse } from '@/lib/types';
 
 // Define the input schema, which is a partial AssessmentAttempt
 // We include the full questions here for the AI to reference during scoring.
-const ScoreAssessmentInputSchema = z.object({
-  userId: z.string(),
-  assessmentId: z.string(),
-  roleId: z.string(),
-  startedAt: z.number(),
-  submittedAt: z.number(),
-  responses: z.array(z.custom<UserResponse>()),
-  questions: z.array(z.custom<Question>()),
-});
+const ScoreAssessmentInputSchema = z.custom<Omit<AssessmentAttempt, 'id'> & { questions: Question[] }>();
+
 
 // This is the output of the flow, containing only the scored fields.
 const ScoredFieldsSchema = z.object({
@@ -111,12 +104,12 @@ export const scoreAssessmentFlow = ai.defineFlow(
     }
 
     // Calculate final scores
-    const finalScore = totalMaxPossibleScore > 0 ? (totalUserEarnedScore / totalMaxPossibleScore) * 100 : 0;
+    const finalScore = totalMaxPossibleScore > 0 ? Math.round((totalUserEarnedScore / totalMaxPossibleScore) * 100) : 0;
     
     const finalSkillScores: Record<string, number> = {};
     for (const skill in skillScores) {
       const { earned, max } = skillScores[skill];
-      finalSkillScores[skill] = max > 0 ? (earned / max) * 100 : 0;
+      finalSkillScores[skill] = max > 0 ? Math.round((earned / max) * 100) : 0;
     }
     
     // Generate AI Feedback

@@ -86,11 +86,11 @@ const AssessmentRunner = () => {
       toast({ title: "Submitting Assessment", description: "Evaluating your answers and generating feedback. Please wait." });
 
       const finalResponses = Object.values(responses).map(response => ({
-          ...response,
-          timeTaken: (Date.now() - startTime) / 1000 / assessment.questions.length, // Approximate
+        ...response,
+        timeTaken: (Date.now() - startTime) / 1000 / assessment.questions.length, // Approximate
       }));
-      
-      const attemptShell = {
+
+      const attemptShell: Omit<AssessmentAttempt, 'id'> & { questions: Question[] } = {
           userId: user.id,
           assessmentId: assessment.id,
           roleId: assessment.roleId,
@@ -106,11 +106,14 @@ const AssessmentRunner = () => {
           
           const finalAttempt: AssessmentAttempt = {
             id: assessment.id,
-            ...attemptShell,
+            userId: attemptShell.userId,
+            assessmentId: attemptShell.assessmentId,
+            roleId: attemptShell.roleId,
+            startedAt: attemptShell.startedAt,
+            submittedAt: attemptShell.submittedAt,
             ...scoredResult,
           };
-          delete finalAttempt.questions; // Don't save questions to the attempt document
-
+          
           // Now save the scored attempt to Firestore
           const attemptDocRef = doc(firestore, `users/${user.id}/assessments`, assessment.id);
           await setDoc(attemptDocRef, finalAttempt);
