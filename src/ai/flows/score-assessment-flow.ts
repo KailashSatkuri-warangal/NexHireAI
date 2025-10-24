@@ -41,47 +41,41 @@ export const scoreAssessmentFlow = ai.defineFlow(
   },
   async (attempt) => {
     const { questions, responses } = attempt;
-    if (!questions) throw new Error("Questions are required for scoring.");
+    if (!questions || !responses) throw new Error("Questions and responses are required for scoring.");
 
-    // --- Defensive Data Handling ---
+    // --- Defensive Data Handling & Helpers ---
     const toSafeString = (v: any) => (v === undefined || v === null ? "" : String(v));
     const isNonEmptyString = (s?: any) => typeof s === "string" && s.trim().length > 0;
 
-    // --- 1. Group questions and user responses together ---
-    const combinedResponses = responses.map(res => {
+    // --- 1. Combine questions and user responses, then filter by type ---
+    const combinedData = responses.map(res => {
         const question = questions.find(q => q.id === res.questionId);
-        return {
-            ...question, // Spread question properties
-            ...res,     // Spread user response properties
-        };
+        return { ...question, ...res };
     }) as (Question & UserResponse)[];
+    
+    const mcqs = combinedData.filter(q => q.type === 'mcq');
+    const codingQs = combinedData.filter(q => q.type === 'coding');
+    const shortQs = combinedData.filter(q => q.type === 'short' && isNonEmptyString(q.answer) && isNonEmptyString(q.correctAnswer));
 
 
-    // --- 2. Filter into deterministic and AI-scored groups ---
-    const mcqs = combinedResponses.filter(q => q.type === 'mcq');
-    const codingQs = combinedResponses.filter(q => q.type === 'coding');
-    const shortQs = combinedResponses.filter(q => q.type === 'short' && isNonEmptyString(q.answer) && isNonEmptyString(q.correctAnswer));
-
-
-    // --- 3. Score deterministic questions (MCQs & Coding) ---
+    // --- 2. Score deterministic questions (MCQs & Coding) ---
     const mcqScores = mcqs.map(q => {
         const userAnswer = toSafeString(q.answer).trim().toLowerCase();
         const correctAnswer = toSafeString(q.correctAnswer).trim().toLowerCase();
         const earned = (userAnswer === "" ? 0 : (userAnswer === correctAnswer ? 1 : 0));
-        return { questionId: q.id, skill: q.skill, earned, max: 1 };
+        return { questionId: q.id, skill: q.skill, earned, max: 1, isCorrect: earned === 1 };
     });
 
     const codingScores = codingQs.map(q => {
         const passed = Number(q.testCasesPassed ?? 0);
         const total = Number(q.totalTestCases ?? 1); // Avoid division by zero
         const earned = total > 0 ? Math.max(0, Math.min(1, passed / total)) : 0;
-        return { questionId: q.id, skill: q.skill, earned, max: 1 };
+        return { questionId: q.id, skill: q.skill, earned, max: 1, isCorrect: earned === 1, passed, total };
     });
 
-    // --- 4. Call AI for short answers (Prompt A), only if they exist ---
-    let shortAnswerScores: { questionId: string; skill: string; earned: number; max: number; }[] = [];
+    // --- 3. Score short answers via AI (Prompt A), only if they exist ---
+    let shortAnswerScores: { questionId: string; skill: string; earned: number; max: number; isCorrect: boolean }[] = [];
     let shortAnswerSummary = "Not available";
-    let evaluatedResponses = [...responses]; // Start with original responses
 
     if (shortQs.length > 0) {
         const shortPayload = shortQs.map(q => ({
@@ -93,40 +87,31 @@ export const scoreAssessmentFlow = ai.defineFlow(
 
         const { output: aiShortScores } = await ai.generate({
             prompt: `You are a strict grader. Grade the user answers in the SHORT_ANSWERS array.
-            SHORT_ANSWERS: ${JSON.stringify(shortPayload)}`,
-            output: {
-                format: "json",
-                schema: ShortAnswerScoreSchema,
-            },
-            context: [{
-                text: `Return a JSON array where each element is {"questionId": "<string>", "score": <integer 0-100>, "explain": "<string>"}. Evaluate concisely. If user answer exactly matches, score is 100. Output ONLY the valid JSON array.`
-            }],
+            SHORT_ANSWERS: ${JSON.stringify(shortPayload)}
+            
+            Return a JSON array where each element is {"questionId": "<string>", "score": <integer 0-100>, "explain": "<string>"}. Evaluate concisely. If user answer exactly matches, score is 100. Output ONLY the valid JSON array.`,
+            output: { schema: ShortAnswerScoreSchema },
             config: { temperature: 0.2 },
         });
 
         if (aiShortScores) {
             const shortScoresMap = new Map(aiShortScores.map(s => [s.questionId, s.score]));
-            shortAnswerScores = shortQs.map(q => ({
-                questionId: q.id,
-                skill: q.skill,
-                earned: (shortScoresMap.get(q.id) ?? 0) / 100, // Normalize to 0-1
-                max: 1,
-            }));
+            shortAnswerScores = shortQs.map(q => {
+                const score = shortScoresMap.get(q.id) ?? 0;
+                return {
+                    questionId: q.id,
+                    skill: q.skill,
+                    earned: score / 100, // Normalize to 0-1
+                    max: 1,
+                    isCorrect: score > 70, // Consider >70% as correct
+                };
+            });
             const avgShortScore = Math.round((shortAnswerScores.reduce((acc, s) => acc + (s.earned * 100), 0) / shortAnswerScores.length));
             shortAnswerSummary = `Total short answers: ${shortQs.length}, average score: ${avgShortScore}%`;
-            
-            // Update evaluatedResponses with correctness for short answers
-            evaluatedResponses = evaluatedResponses.map(resp => {
-                const scored = aiShortScores.find(s => s.questionId === resp.questionId);
-                if (scored) {
-                    return { ...resp, isCorrect: scored.score > 70 };
-                }
-                return resp;
-            });
         }
     }
      
-    // --- 5. Aggregate all scores by skill ---
+    // --- 4. Aggregate all scores by skill ---
     const skillMap = new Map<string, { earnedSum: number; maxSum: number }>();
     const addScore = (skill: string, earned: number, max: number) => {
         const s = skillMap.get(skill) ?? { earnedSum: 0, maxSum: 0 };
@@ -137,75 +122,70 @@ export const scoreAssessmentFlow = ai.defineFlow(
 
     [...mcqScores, ...codingScores, ...shortAnswerScores].forEach(s => addScore(s.skill, s.earned, s.max));
 
-    // --- 6. Build the final, clean skillScores object for the AI ---
+    // --- 5. Build the final, clean skillScores object for the AI prompt ---
     const finalSkillScores: Record<string, number | "Not available"> = {};
     for (const [skill, { earnedSum, maxSum }] of skillMap.entries()) {
         finalSkillScores[skill] = maxSum > 0 ? Math.round((earnedSum / maxSum) * 100) : "Not available";
     }
-
     const finalSkillScoresForPrompt = Object.keys(finalSkillScores).length ? finalSkillScores : "Not available";
-    const totalEarned = [...mcqScores, ...codingScores, ...shortAnswerScores].reduce((acc, s) => acc + s.earned, 0);
-    const totalMax = [...mcqScores, ...codingScores, ...shortAnswerScores].reduce((acc, s) => acc + s.max, 0);
-    const finalScore = totalMax > 0 ? Math.round((totalEarned / totalMax) * 100) : 0;
-    
-    // --- 7. Build summary strings for final feedback prompt ---
+
+    // --- 6. Build summary strings for final feedback prompt (Prompt B) ---
     const mcqSummary = `Total MCQs: ${mcqs.length}, Correct: ${mcqScores.filter(s => s.earned === 1).length}`;
-    const avgCodingPassRate = codingQs.length > 0
-        ? Math.round((codingQs.reduce((sum, q) => sum + (Number(q.testCasesPassed ?? 0) / (Number(q.totalTestCases ?? 1))), 0) / codingQs.length) * 100)
+    const avgCodingPassRate = codingScores.length > 0
+        ? Math.round((codingScores.reduce((sum, q) => sum + (q.passed / (q.total || 1)), 0) / codingScores.length) * 100)
         : 0;
-    const codingSummary = `Total coding questions: ${codingQs.length}, avg pass rate: ${avgCodingPassRate}%`;
+    const codingSummary = `Total coding questions: ${codingScores.length}, avg_pass_rate: ${avgCodingPassRate}%`;
 
-    // --- 8. Generate final feedback (Prompt B) ---
-    const finalPromptText = `
-    FINAL_SKILL_SCORES: ${JSON.stringify(finalSkillScoresForPrompt)}
-    MCQ_SUMMARY: ${mcqSummary}
-    CODING_SUMMARY: ${codingSummary}
-    SHORT_ANSWERS_SUMMARY: ${shortAnswerSummary}
+    const finalPromptText = `FINAL_SKILL_SCORES: ${JSON.stringify(finalSkillScoresForPrompt)}
+MCQ_SUMMARY: ${mcqSummary}
+CODING_SUMMARY: ${codingSummary}
+SHORT_ANSWERS_SUMMARY: ${shortAnswerSummary}
 
-    TASK:
-    1) Return a short overall feedback paragraph (one or two sentences).
-    2) For each skill in FINAL_SKILL_SCORES, return a bullet with the skill name, its score, and one short action item (max 10 words) to improve.
-    3) Provide 3 concise study/practice suggestions across skills (each max 10 words).
+TASK:
+1) Return a short overall feedback paragraph (one or two sentences).
+2) For each skill in FINAL_SKILL_SCORES, return a bullet with the skill name, its score, and one short action item (max 10 words) to improve.
+3) Provide 3 concise study/practice suggestions across skills (each max 10 words).
 
-    OUTPUT FORMAT:
-    Return a JSON object exactly matching:
-    {
-      "overall": "<one- or two-sentence string>",
-      "skills": [
-        {"skill": "<name>", "score": <number_or_string>, "advice": "<string>"},
-        ...
-      ],
-      "suggestions": ["<string>", "<string>", "<string>"]
-    }
+OUTPUT FORMAT:
+Return a JSON object exactly matching:
+{
+  "overall": "<one- or two-sentence string>",
+  "skills": [
+    {"skill": "<name>", "score": <number_or_string>, "advice": "<string>"},
+    ...
+  ],
+  "suggestions": ["<string>", "<string>", "<string>"]
+}
 
-    Rules:
-    - If a skill value is the string "Not available", pass it through as a string.
-    - Scores that are numbers must be numbers (not strings).
-    - Output ONLY valid JSON — nothing else.
-    `;
+Rules:
+- If a skill value is the string "Not available", pass it through as a string.
+- Scores that are numbers must be numbers (not strings).
+- Output ONLY valid JSON — nothing else.
+`;
 
     const { output: aiFeedback } = await ai.generate({
         prompt: finalPromptText,
-        output: {
-            format: "json",
-            schema: FinalFeedbackSchema,
-        },
+        output: { schema: FinalFeedbackSchema },
         config: { temperature: 0.8 },
     });
 
-    // --- 9. Assemble and return final object ---
+    // --- 7. Assemble final response object ---
+    const totalEarned = [...mcqScores, ...codingScores, ...shortAnswerScores].reduce((acc, s) => acc + s.earned, 0);
+    const totalMax = [...mcqScores, ...codingScores, ...shortAnswerScores].reduce((acc, s) => acc + s.max, 0);
+    const finalScore = totalMax > 0 ? Math.round((totalEarned / totalMax) * 100) : 0;
     const feedbackString = aiFeedback ? aiFeedback.overall + '\n\n' + aiFeedback.suggestions.map(s => `- ${s}`).join('\n') : 'Feedback could not be generated at this time.';
 
-    // Calculate correctness for mcqs and coding questions
-    evaluatedResponses = evaluatedResponses.map(resp => {
-        const mcq = mcqs.find(q => q.id === resp.questionId);
-        if (mcq) return { ...resp, isCorrect: mcqScores.find(s => s.questionId === mcq.id)?.earned === 1 };
-        
-        const codingQ = codingQs.find(q => q.id === resp.questionId);
-        if (codingQ) return { ...resp, isCorrect: codingScores.find(s => s.questionId === codingQ.id)?.earned === 1 };
-
-        return resp; // Short answers already handled
+    // Combine all correctness flags into a map for easy lookup
+    const correctnessMap = new Map<string, boolean>();
+    [...mcqScores, ...codingScores, ...shortAnswerScores].forEach(s => {
+        correctnessMap.set(s.questionId, s.isCorrect);
     });
+    
+    // Update original responses with `isCorrect` flag
+    const evaluatedResponses = responses.map(resp => ({
+        ...resp,
+        isCorrect: correctnessMap.get(resp.questionId) ?? false,
+    }));
 
     return {
       ...attempt,

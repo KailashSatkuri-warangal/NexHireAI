@@ -55,9 +55,9 @@ export interface AssessmentAttempt {
     responses: UserResponse[];
     // --- Post-Submission Fields ---
     finalScore?: number;
-    skillScores?: Record<string, number>; // e.g. { 'React': 85, 'CSS': 90 }
+    skillScores?: Record<string, number | 'Not available'>; 
     aiFeedback?: string;
-    questions?: Question[]; // Only used for scoring flow, not saved
+    questions?: Question[]; // Only used for scoring context, not saved
 }
 
 export interface User {
