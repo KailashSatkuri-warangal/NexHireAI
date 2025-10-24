@@ -15,7 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Timer, Loader2, ChevronLeft, ChevronRight, Send } from 'lucide-react';
 import { doc, setDoc } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
-import type { AssessmentAttempt, UserResponse } from '@/lib/types';
+import type { AssessmentAttempt, UserResponse, Question } from '@/lib/types';
 import { CodeEditor } from '@/components/assessment/CodeEditor';
 import { scoreAssessment } from '@/ai/flows/score-assessment-flow';
 
@@ -93,7 +93,7 @@ const AssessmentRunner = () => {
         difficulty: r.difficulty || 'Easy',
       }));
 
-      const attemptShell: Omit<AssessmentAttempt, 'id' | 'finalScore' | 'skillScores' | 'aiFeedback' | 'responses'> & { responses: UserResponse[] } = {
+      const attemptShell = {
           userId: user.id,
           assessmentId: assessment.id,
           roleId: assessment.roleId,
@@ -121,7 +121,7 @@ const AssessmentRunner = () => {
           const errorMessage = (error as Error).message || "An unexpected error occurred.";
           const userFriendlyMessage = errorMessage.includes("429") 
             ? "Submission failed due to high traffic. Please wait a moment and try again."
-            : errorMessage;
+            : "An unexpected response was received from the server.";
           toast({ title: "Submission Failed", description: userFriendlyMessage, variant: "destructive" });
       }
     });
@@ -156,8 +156,8 @@ const AssessmentRunner = () => {
     <div className="relative min-h-[calc(100vh-5rem)] w-full bg-secondary p-4 flex flex-col">
       <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.1),rgba(255,255,255,0))]"></div>
       
-      <Card className="w-full max-w-6xl mx-auto bg-card/70 backdrop-blur-sm border-border/20 shadow-xl flex flex-col flex-grow">
-        <CardHeader className="border-b">
+      <Card className="w-full max-w-6xl mx-auto bg-card/70 backdrop-blur-sm border-border/20 shadow-xl flex flex-col flex-grow overflow-y-auto">
+        <CardHeader className="border-b sticky top-0 bg-card/80 backdrop-blur-sm z-10">
            <div className="flex justify-between items-center">
              <CardTitle className="text-2xl">{assessment.roleName} Assessment</CardTitle>
              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary font-semibold">
@@ -171,7 +171,7 @@ const AssessmentRunner = () => {
            </div>
         </CardHeader>
         
-        <div className="flex-grow overflow-y-auto">
+        <div className="flex-grow">
              {currentQuestion.type === 'coding' ? (
                 <CodeEditor 
                     question={currentQuestion}
@@ -183,7 +183,7 @@ const AssessmentRunner = () => {
                     onRunComplete={(result) => setResponse(currentQuestion.id, { executionResult: result })}
                 />
             ) : (
-            <CardContent className="p-6 md:p-8 min-h-[400px]">
+            <CardContent className="p-6 md:p-8">
                 <h2 className="text-xl font-semibold mb-4">{currentQuestion.questionText}</h2>
 
                 {currentQuestion.type === 'mcq' && (
@@ -214,7 +214,7 @@ const AssessmentRunner = () => {
             )}
         </div>
 
-        <CardFooter className="flex justify-between border-t pt-6">
+        <CardFooter className="flex justify-between border-t pt-6 sticky bottom-0 bg-card/80 backdrop-blur-sm">
             <Button variant="outline" onClick={prevQuestion} disabled={currentQuestionIndex === 0 || isSubmitting}>
                 <ChevronLeft className="mr-2 h-4 w-4" /> Previous
             </Button>

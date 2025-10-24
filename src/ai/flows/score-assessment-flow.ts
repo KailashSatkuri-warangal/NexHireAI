@@ -141,8 +141,8 @@ export const scoreAssessmentFlow = ai.defineFlow(
 );
 
 
-export async function scoreAssessment(attempt: Omit<AssessmentAttempt, 'id'>): Promise<AssessmentAttempt> {
-  const scoredData = await scoreAssessmentFlow(attempt as any); // Cast because flow expects specific input
+export async function scoreAssessment(attempt: Omit<AssessmentAttempt, 'id'> & { questions: Question[] }): Promise<AssessmentAttempt> {
+  const scoredData = await scoreAssessmentFlow(attempt);
   return {
     ...attempt,
     ...scoredData,
