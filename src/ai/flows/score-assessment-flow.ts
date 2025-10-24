@@ -68,7 +68,7 @@ export const scoreAssessmentFlow = ai.defineFlow(
         evaluatedResponse.isCorrect = correctnessFactor === 1;
       } 
       else if (question.type === 'short') {
-         if (response.answer?.trim() === question.correctAnswer?.trim()) {
+         if (response.answer?.trim().toLowerCase() === question.correctAnswer?.trim().toLowerCase()) {
             correctnessFactor = 1;
          } else {
              const { output: semanticScore } = await ai.generate({
