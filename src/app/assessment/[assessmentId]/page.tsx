@@ -18,6 +18,7 @@ import { initializeFirebase } from '@/firebase';
 import type { AssessmentAttempt, UserResponse, Question, CodeExecutionResult } from '@/lib/types';
 import { CodeEditor } from '@/components/assessment/CodeEditor';
 import { scoreAssessment } from '@/ai/flows/score-assessment-flow';
+import { generateFeedback } from '@/ai/flows/generate-feedback-flow';
 import { runAllCode } from '@/ai/flows/run-all-code-flow';
 
 const AssessmentRunner = () => {
@@ -85,7 +86,7 @@ const AssessmentRunner = () => {
     }
     
     startSubmitting(async () => {
-      toast({ title: "Submitting Assessment", description: "Evaluating your answers and generating feedback. This may take a minute." });
+      toast({ title: "Submitting Assessment", description: "Evaluating your answers. This may take a moment." });
 
       const finalResponses: UserResponse[] = Object.values(responses).map(response => ({
         ...response,
@@ -103,8 +104,18 @@ const AssessmentRunner = () => {
       };
 
       try {
+          // Step 1: Get numerical scores
           const scoredResult = await scoreAssessment(attemptShell);
           
+          toast({ title: "Scoring Complete", description: "Generating AI feedback..." });
+
+          // Step 2: Generate AI feedback separately
+          const feedback = await generateFeedback({
+            finalScore: scoredResult.finalScore,
+            skillScores: scoredResult.skillScores,
+          });
+
+          // Step 3: Combine and save
           const finalAttempt: AssessmentAttempt = {
             id: assessment.id,
             userId: attemptShell.userId,
@@ -112,6 +123,7 @@ const AssessmentRunner = () => {
             roleId: attemptShell.roleId,
             startedAt: attemptShell.startedAt,
             submittedAt: attemptShell.submittedAt,
+            aiFeedback: feedback,
             ...scoredResult,
           };
           
@@ -279,5 +291,3 @@ const AssessmentRunner = () => {
 };
 
 export default AssessmentRunner;
-
-    
