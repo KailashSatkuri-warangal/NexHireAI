@@ -39,6 +39,7 @@ export const scoreAssessmentFlow = ai.defineFlow(
     // --- BATCH SCORING FOR SHORT ANSWERS ---
     const shortAnswerResponses = responses.filter(r => {
         const q = questions.find(q => q.id === r.questionId);
+        // Only include short answers that have user input and a defined correct answer for comparison.
         return q?.type === 'short' && r.answer && q.correctAnswer;
     });
 
