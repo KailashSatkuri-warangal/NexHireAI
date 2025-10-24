@@ -4,7 +4,7 @@ import type { Assessment, UserResponse } from '@/lib/types';
 
 interface AssessmentState {
   assessment: Assessment | null;
-  responses: Record<string, UserResponse>;
+  responses: Record<string, Partial<UserResponse>>;
   currentQuestionIndex: number;
   startTime: number | null;
   setAssessment: (assessment: Assessment) => void;
@@ -22,9 +22,17 @@ export const useAssessmentStore = create<AssessmentState>((set, get) => ({
   startTime: null,
 
   setAssessment: (assessment) => {
+    // Initialize responses with starter code for coding questions
+    const initialResponses: Record<string, Partial<UserResponse>> = {};
+    assessment.questions.forEach(q => {
+      if (q.type === 'coding' && q.starterCode) {
+        initialResponses[q.id] = { code: q.starterCode, language: 'javascript' };
+      }
+    });
+
     set({
       assessment,
-      responses: {},
+      responses: initialResponses,
       currentQuestionIndex: 0,
       startTime: Date.now(),
     });
@@ -65,7 +73,6 @@ export const useAssessmentStore = create<AssessmentState>((set, get) => ({
           skill: question.skill,
           difficulty: question.difficulty,
           ...response,
-          timeTaken: 0, // Will be calculated on submission
         },
       },
     }));

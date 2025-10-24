@@ -28,10 +28,12 @@ export interface UserResponse {
     difficulty: 'Easy' | 'Medium' | 'Hard';
     answer?: string; // For MCQ/short
     code?: string; // For coding
+    language?: string; // Language used for coding question
     timeTaken: number;
     isCorrect?: boolean; // Post-evaluation
     testCasesPassed?: number; // Post-evaluation
     totalTestCases?: number; // Post-evaluation
+    executionResult?: CodeExecutionResult; // Post-evaluation
 }
 
 export interface Assessment {
@@ -127,3 +129,11 @@ export interface AnalysisSummary {
     keywords: boolean;
   };
 }
+
+export type CodeExecutionResult = {
+    status: 'Passed' | 'Failed' | 'Error' | 'Time Limit Exceeded';
+    output: string;
+    expectedOutput?: string;
+    time: string;
+    memory: string;
+};
