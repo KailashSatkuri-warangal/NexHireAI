@@ -104,13 +104,12 @@ const AssessmentRunner = () => {
       };
 
       try {
+          // The scoreAssessment function returns the fully scored attempt
           const scoredAttempt = await scoreAssessment(attemptShell);
-          const attemptToSave = { ...scoredAttempt };
-          // @ts-ignore
-          delete attemptToSave.questions; // Don't save full questions back to the attempt doc
-
+          
+          // Now save the scored attempt to Firestore
           const attemptDocRef = doc(firestore, `users/${user.id}/assessments`, assessment.id);
-          await setDoc(attemptDocRef, attemptToSave);
+          await setDoc(attemptDocRef, scoredAttempt);
           
           toast({ title: "Assessment Submitted!", description: "Your results are now available on your dashboard." });
           reset();
@@ -118,10 +117,10 @@ const AssessmentRunner = () => {
 
       } catch (error) {
           console.error("Error submitting and scoring assessment:", error);
-          const errorMessage = (error as Error).message || "An unexpected error occurred.";
+          const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
           const userFriendlyMessage = errorMessage.includes("429") 
             ? "Submission failed due to high traffic. Please wait a moment and try again."
-            : "An unexpected response was received from the server.";
+            : `An unexpected error occurred. ${errorMessage}`;
           toast({ title: "Submission Failed", description: userFriendlyMessage, variant: "destructive" });
       }
     });
@@ -171,10 +170,9 @@ const AssessmentRunner = () => {
            </div>
         </CardHeader>
         
-        <div className="flex-grow">
+        <div className="flex-grow p-6 overflow-y-auto">
             <div className="flex flex-col h-full">
-              <div className="p-6 overflow-y-auto">
-                 <h2 className="text-xl font-semibold mb-4">{currentQuestion.questionText}</h2>
+                <h2 className="text-xl font-semibold mb-4">{currentQuestion.questionText}</h2>
 
                 {currentQuestion.type === 'mcq' && (
                     <RadioGroup 
@@ -211,7 +209,6 @@ const AssessmentRunner = () => {
                       onRunComplete={(result) => setResponse(currentQuestion.id, { executionResult: result })}
                   />
               )}
-              </div>
             </div>
         </div>
 

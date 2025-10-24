@@ -18,10 +18,10 @@ const ScoreAssessmentInputSchema = z.object({
   startedAt: z.number(),
   submittedAt: z.number(),
   responses: z.array(z.custom<UserResponse>()),
-  questions: z.array(z.custom<Question>()),
+  questions: z.array(z.custom<Question>()), // This was the missing piece
 });
 
-// Define the output schema, which is the fully scored AssessmentAttempt
+// This is just for the AI prompt's output validation, not the flow's final output
 const ScoredAssessmentOutputSchema = z.object({
   finalScore: z.number().describe('The final, normalized score from 0-100.'),
   skillScores: z.record(z.string(), z.number()).describe('A map of sub-skill names to their scores (0-100).'),
@@ -130,13 +130,15 @@ export const scoreAssessmentFlow = ai.defineFlow(
         config: { temperature: 0.8 }
     });
 
-    return {
+    const finalAttempt: AssessmentAttempt = {
       ...attempt,
       responses: evaluatedResponses,
       finalScore,
       skillScores: finalSkillScores,
       aiFeedback: aiFeedback || "Feedback could not be generated at this time.",
-    };
+    }
+    delete finalAttempt.questions; // Remove questions before returning
+    return finalAttempt;
   }
 );
 
