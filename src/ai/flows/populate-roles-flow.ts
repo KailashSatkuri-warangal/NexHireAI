@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A flow to populate the Firestore database with 30+ professional roles and their sub-skills.
@@ -9,16 +10,6 @@ import { getFirestore, collection, writeBatch, doc } from 'firebase/firestore';
 import { initializeFirebaseForServer } from '@/firebase/server-init';
 import type { Question, Role } from '@/lib/types';
 
-
-const RoleSchema = z.object({
-  name: z.string().describe('The name of the professional role.'),
-  description: z.string().describe('A brief, one-sentence description of the role.'),
-  subSkills: z.array(z.string()).length(5).describe('A list of exactly 5 key sub-skills for this role.'),
-});
-
-const RoleListSchema = z.object({
-  roles: z.array(RoleSchema),
-});
 
 const QuestionSchema = z.object({
   questionText: z.string(),
@@ -33,6 +24,23 @@ const QuestionSchema = z.object({
 
 const GeneratedQuestionsSchema = z.object({
     questions: z.array(QuestionSchema),
+});
+
+const SubSkillQuestionsSchema = z.object({
+  skill: z.string(),
+  questions: z.array(QuestionSchema).length(5),
+});
+
+const GeneratedRoleSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  subSkills: z.array(z.string()).length(5),
+  skillQuestions: z.array(SubSkillQuestionsSchema).length(5),
+  combinedQuestions: z.array(QuestionSchema).length(5),
+});
+
+const RoleListSchema = z.object({
+    roles: z.array(GeneratedRoleSchema),
 });
 
 
@@ -54,75 +62,73 @@ const populateRolesFlow = ai.defineFlow(
   async () => {
     const { firestore } = initializeFirebaseForServer();
     const rolesCollectionRef = collection(firestore, 'roles');
-
-    // 1. Generate the roles and their sub-skills
+    
+    // 1. Generate all roles, skills, and questions in one mega-prompt.
     const { output: rolesOutput } = await ai.generate({
-      prompt: `Generate a detailed list for the following 31 professional roles. For each role, provide a brief description and a list of exactly 5 essential sub-skills. The roles are: ${professionalRoles.join(', ')}.`,
+      prompt: `Generate a detailed list for the following 31 professional roles: ${professionalRoles.join(', ')}.
+
+      For EACH of the 31 roles, provide the following in a single JSON object:
+      1.  'name': The name of the professional role.
+      2.  'description': A brief, one-sentence description of the role.
+      3.  'subSkills': A list of exactly 5 essential string sub-skills for this role.
+      4.  'skillQuestions': An array of 5 objects. Each object must contain:
+          - 'skill': The name of the sub-skill.
+          - 'questions': An array of exactly 5 assessment questions for that specific sub-skill. Each question must have 'questionText', 'type', 'difficulty', 'timeLimit', and other relevant fields like 'options' for mcq or 'testCases' for coding.
+      5.  'combinedQuestions': An array of exactly 5 complex, scenario-based questions that integrate and test knowledge across multiple of the role's sub-skills.
+      
+      Ensure the output is a single, valid JSON object that strictly follows the provided schema. The root should be an object with a 'roles' property, which is an array of these generated role objects.`,
       output: {
         schema: RoleListSchema,
       },
-      config: { temperature: 0.5 }
+      config: { temperature: 0.6 }
     });
 
     if (!rolesOutput || !rolesOutput.roles) {
-      throw new Error('AI failed to generate roles.');
+      throw new Error('AI failed to generate roles and questions.');
     }
 
-    // 2. For each role, generate all questions and write everything in a single batch
-    for (const role of rolesOutput.roles) {
+    // 2. For each generated role, write all its data in a single Firestore batch
+    for (const roleData of rolesOutput.roles) {
         const batch = writeBatch(firestore);
+        
+        // A. Create the main role document
         const roleDocRef = doc(rolesCollectionRef);
+        const role: Omit<Role, 'id'> = {
+            name: roleData.name,
+            description: roleData.description,
+            subSkills: roleData.subSkills,
+        };
         batch.set(roleDocRef, role);
 
         const questionsCollectionRef = collection(firestore, `roles/${roleDocRef.id}/questions`);
 
-        // A. Generate 5 questions for EACH sub-skill
-        for (const skill of role.subSkills) {
-            const { output } = await ai.generate({
-                prompt: `Generate 5 assessment questions for the skill "${skill}" within the context of a "${role.name}" role. Include a mix of difficulties (Easy, Medium, Hard) and types (mcq, short, coding). For MCQs, provide 4 options. For coding questions, provide simple test cases.`,
-                output: { schema: GeneratedQuestionsSchema },
-                config: { temperature: 0.7 },
-            });
-
-             if (!output || !output.questions) {
-                console.warn(`AI failed to generate questions for skill: ${skill}. Skipping.`);
-                continue;
-            }
-
-            output.questions.forEach(q => {
-                const questionDocRef = doc(questionsCollectionRef); // auto-gen ID
+        // B. Add the questions for each sub-skill
+        for (const skillGroup of roleData.skillQuestions) {
+            for (const question of skillGroup.questions) {
+                const questionDocRef = doc(questionsCollectionRef);
                 const newQuestion: Omit<Question, 'id'> = {
-                    skill: skill,
-                    tags: [role.name, skill],
-                    ...q,
+                    skill: skillGroup.skill,
+                    tags: [roleData.name, skillGroup.skill],
+                    ...question,
                 };
                 batch.set(questionDocRef, newQuestion);
-            });
+            }
         }
 
-        // B. Generate 5 "combined" cross-skill questions
-        const { output: combinedOutput } = await ai.generate({
-            prompt: `Generate 5 complex, scenario-based assessment questions for a "${role.name}" role that integrate and test knowledge across multiple of the following skills: ${role.subSkills.join(', ')}. Include a mix of difficulties and types (mcq, short, coding).`,
-            output: { schema: GeneratedQuestionsSchema },
-            config: { temperature: 0.8 },
-        });
-
-        if (combinedOutput && combinedOutput.questions) {
-            combinedOutput.questions.forEach(q => {
-                const questionDocRef = doc(questionsCollectionRef); // auto-gen ID
-                const newQuestion: Omit<Question, 'id'> = {
-                    skill: 'combined', // Special skill tag for cross-disciplinary questions
-                    tags: [role.name, ...role.subSkills],
-                    ...q,
-                };
-                batch.set(questionDocRef, newQuestion);
-            });
-        } else {
-             console.warn(`AI failed to generate combined questions for role: ${role.name}.`);
+        // C. Add the combined questions
+        for (const question of roleData.combinedQuestions) {
+             const questionDocRef = doc(questionsCollectionRef);
+             const newQuestion: Omit<Question, 'id'> = {
+                skill: 'combined', // Special skill tag
+                tags: [roleData.name, ...roleData.subSkills],
+                ...question,
+            };
+            batch.set(questionDocRef, newQuestion);
         }
         
-        // Commit the batch for this entire role (role doc + all its questions)
+        // D. Commit the batch for this entire role (role doc + all 30 questions)
         await batch.commit();
+        console.log(`Successfully populated role: ${roleData.name}`);
     }
   }
 );
