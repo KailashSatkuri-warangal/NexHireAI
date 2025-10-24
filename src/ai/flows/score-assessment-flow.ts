@@ -2,20 +2,36 @@
 'use server';
 /**
  * @fileOverview A flow to score a completed assessment, calculate scores, and generate feedback.
+ * This flow now follows a robust, multi-stage process to minimize AI calls and prevent errors.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import type { AssessmentAttempt, Question, UserResponse } from '@/lib/types';
+import type { AssessmentAttempt, UserResponse, Question } from '@/lib/types';
 
 
-// Schema for the batched scoring of short answers.
-const ShortAnswerScoresSchema = z.array(
+// Schema for Prompt A (Scoring Short Answers)
+const ShortAnswerScoreSchema = z.array(
     z.object({
-        questionId: z.string().describe("The ID of the question being scored."),
-        score: z.number().min(0).max(1).describe("The semantic similarity score from 0.0 to 1.0.")
+        questionId: z.string(),
+        score: z.number().int().min(0).max(100).describe("Integer 0-100, percentage correctness"),
+        explain: z.string().describe("Short string explanation (max 40 words)"),
     })
 );
+
+// Schema for Prompt B (Generating Final Feedback)
+const FinalFeedbackSchema = z.object({
+  overall: z.string().describe("One- or two-sentence overall feedback string"),
+  skills: z.array(
+    z.object({
+      skill: z.string(),
+      score: z.union([z.number(), z.string()]),
+      advice: z.string().describe("Short action item, max 10 words"),
+    })
+  ),
+  suggestions: z.array(z.string()).length(3).describe("Three concise study/practice suggestions, max 10 words each"),
+});
+
 
 export const scoreAssessmentFlow = ai.defineFlow(
   {
@@ -25,146 +41,183 @@ export const scoreAssessmentFlow = ai.defineFlow(
   },
   async (attempt) => {
     const { questions, responses } = attempt;
+    if (!questions) throw new Error("Questions are required for scoring.");
 
-    if (!questions) {
-      throw new Error("Questions are required for scoring.");
-    }
-    
-    const difficultyWeightMap: Record<string, number> = { Easy: 1.0, Medium: 1.5, Hard: 2.0 };
-    let totalMaxPossibleScore = 0;
-    let totalUserEarnedScore = 0;
+    // --- Defensive Data Handling ---
+    const toSafeString = (v: any) => (v === undefined || v === null ? "" : String(v));
+    const isNonEmptyString = (s?: any) => typeof s === "string" && s.trim().length > 0;
 
-    const skillScores: Record<string, { earned: number, max: number }> = {};
-    
-    // --- BATCH SCORING FOR SHORT ANSWERS ---
-    const shortAnswerResponses = responses.filter(r => {
-        const q = questions.find(q => q.id === r.questionId);
-        // Only include short answers that have user input and a defined correct answer for comparison.
-        return q?.type === 'short' && r.answer && q.correctAnswer;
+    // --- 1. Group questions and user responses together ---
+    const combinedResponses = responses.map(res => {
+        const question = questions.find(q => q.id === res.questionId);
+        return {
+            ...question, // Spread question properties
+            ...res,     // Spread user response properties
+        };
+    }) as (Question & UserResponse)[];
+
+
+    // --- 2. Filter into deterministic and AI-scored groups ---
+    const mcqs = combinedResponses.filter(q => q.type === 'mcq');
+    const codingQs = combinedResponses.filter(q => q.type === 'coding');
+    const shortQs = combinedResponses.filter(q => q.type === 'short' && isNonEmptyString(q.answer) && isNonEmptyString(q.correctAnswer));
+
+
+    // --- 3. Score deterministic questions (MCQs & Coding) ---
+    const mcqScores = mcqs.map(q => {
+        const userAnswer = toSafeString(q.answer).trim().toLowerCase();
+        const correctAnswer = toSafeString(q.correctAnswer).trim().toLowerCase();
+        const earned = (userAnswer === "" ? 0 : (userAnswer === correctAnswer ? 1 : 0));
+        return { questionId: q.id, skill: q.skill, earned, max: 1 };
     });
 
-    const scoresMap: Record<string, number> = {};
+    const codingScores = codingQs.map(q => {
+        const passed = Number(q.testCasesPassed ?? 0);
+        const total = Number(q.totalTestCases ?? 1); // Avoid division by zero
+        const earned = total > 0 ? Math.max(0, Math.min(1, passed / total)) : 0;
+        return { questionId: q.id, skill: q.skill, earned, max: 1 };
+    });
 
-    if (shortAnswerResponses.length > 0) {
-        const scoringPayload = shortAnswerResponses.map(r => {
-            const q = questions.find(q => q.id === r.questionId)!;
-            return {
-                questionId: r.questionId,
-                userAnswer: r.answer,
-                correctAnswer: q.correctAnswer, // This is now safe because of the filter above
-            };
-        });
-        
-        console.log(`Batch scoring ${scoringPayload.length} short answers...`);
-        const { output: shortAnswerScores } = await ai.generate({
-            prompt: `You are an expert AI grader. Evaluate a batch of user answers against their correct counterparts. For each item, provide a semantic similarity score from 0.0 (completely wrong) to 1.0 (perfectly correct). Respond with a JSON array of objects, where each object has a "questionId" and a "score".
-            
-            Batch to Score:
-            ${JSON.stringify(scoringPayload, null, 2)}
-            
-            Your response MUST be a valid JSON array matching the specified schema.`,
+    // --- 4. Call AI for short answers (Prompt A), only if they exist ---
+    let shortAnswerScores: { questionId: string; skill: string; earned: number; max: number; }[] = [];
+    let shortAnswerSummary = "Not available";
+    let evaluatedResponses = [...responses]; // Start with original responses
+
+    if (shortQs.length > 0) {
+        const shortPayload = shortQs.map(q => ({
+            questionId: toSafeString(q.id),
+            questionText: toSafeString(q.questionText),
+            correctAnswer: toSafeString(q.correctAnswer!),
+            userAnswer: toSafeString(q.answer!),
+        }));
+
+        const { output: aiShortScores } = await ai.generate({
+            prompt: `You are a strict grader. Grade the user answers in the SHORT_ANSWERS array.
+            SHORT_ANSWERS: ${JSON.stringify(shortPayload)}`,
             output: {
-                schema: ShortAnswerScoresSchema,
+                format: "json",
+                schema: ShortAnswerScoreSchema,
             },
-            config: { 
-              temperature: 0.2,
-            }
+            context: [{
+                text: `Return a JSON array where each element is {"questionId": "<string>", "score": <integer 0-100>, "explain": "<string>"}. Evaluate concisely. If user answer exactly matches, score is 100. Output ONLY the valid JSON array.`
+            }],
+            config: { temperature: 0.2 },
         });
-        
-        if (shortAnswerScores) {
-            for (const item of shortAnswerScores) {
-                scoresMap[item.questionId] = item.score;
-            }
+
+        if (aiShortScores) {
+            const shortScoresMap = new Map(aiShortScores.map(s => [s.questionId, s.score]));
+            shortAnswerScores = shortQs.map(q => ({
+                questionId: q.id,
+                skill: q.skill,
+                earned: (shortScoresMap.get(q.id) ?? 0) / 100, // Normalize to 0-1
+                max: 1,
+            }));
+            const avgShortScore = Math.round((shortAnswerScores.reduce((acc, s) => acc + (s.earned * 100), 0) / shortAnswerScores.length));
+            shortAnswerSummary = `Total short answers: ${shortQs.length}, average score: ${avgShortScore}%`;
+            
+            // Update evaluatedResponses with correctness for short answers
+            evaluatedResponses = evaluatedResponses.map(resp => {
+                const scored = aiShortScores.find(s => s.questionId === resp.questionId);
+                if (scored) {
+                    return { ...resp, isCorrect: scored.score > 70 };
+                }
+                return resp;
+            });
         }
     }
-    // --- END BATCH SCORING ---
+     
+    // --- 5. Aggregate all scores by skill ---
+    const skillMap = new Map<string, { earnedSum: number; maxSum: number }>();
+    const addScore = (skill: string, earned: number, max: number) => {
+        const s = skillMap.get(skill) ?? { earnedSum: 0, maxSum: 0 };
+        s.earnedSum += earned;
+        s.maxSum += max;
+        skillMap.set(skill, s);
+    };
 
-    const evaluatedResponses: UserResponse[] = [];
-    for (const response of responses) {
-      const question = questions.find(q => q.id === response.questionId);
-      if (!question) {
-        evaluatedResponses.push({ ...response, isCorrect: false });
-        continue;
-      }
+    [...mcqScores, ...codingScores, ...shortAnswerScores].forEach(s => addScore(s.skill, s.earned, s.max));
 
-      const maxQuestionScore = difficultyWeightMap[question.difficulty];
-      if (!maxQuestionScore) {
-          console.warn(`No difficulty weight found for difficulty: ${question.difficulty}`);
-          continue;
-      }
-      totalMaxPossibleScore += maxQuestionScore;
-
-      const skillKey = question.skill || 'general';
-      if (!skillScores[skillKey]) {
-        skillScores[skillKey] = { earned: 0, max: 0 };
-      }
-      skillScores[skillKey].max += maxQuestionScore;
-
-      let correctnessFactor = 0;
-      let evaluatedResponse = { ...response };
-
-      if (question.type === 'mcq') {
-        correctnessFactor = (response.answer?.trim().toLowerCase() === question.correctAnswer?.trim().toLowerCase()) ? 1 : 0;
-        evaluatedResponse.isCorrect = correctnessFactor === 1;
-      } 
-      else if (question.type === 'short') {
-         // Use the pre-calculated score from the batch AI call
-         correctnessFactor = scoresMap[response.questionId] ?? 0;
-         evaluatedResponse.isCorrect = correctnessFactor > 0.7;
-      }
-      else if (question.type === 'coding') {
-          const totalTests = question.testCases?.length || 0;
-          const passedTests = evaluatedResponse.executionResult?.filter(r => r.status === 'Passed').length || 0;
-          correctnessFactor = totalTests > 0 ? (passedTests / totalTests) : 0;
-          evaluatedResponse.testCasesPassed = passedTests;
-          evaluatedResponse.totalTestCases = totalTests;
-          evaluatedResponse.isCorrect = correctnessFactor === 1;
-      }
-
-      const earnedScore = correctnessFactor * maxQuestionScore;
-      totalUserEarnedScore += earnedScore;
-      skillScores[skillKey].earned += earnedScore;
-      
-      evaluatedResponses.push(evaluatedResponse);
+    // --- 6. Build the final, clean skillScores object for the AI ---
+    const finalSkillScores: Record<string, number | "Not available"> = {};
+    for (const [skill, { earnedSum, maxSum }] of skillMap.entries()) {
+        finalSkillScores[skill] = maxSum > 0 ? Math.round((earnedSum / maxSum) * 100) : "Not available";
     }
 
-    // Calculate final scores
-    const finalScore = totalMaxPossibleScore > 0 ? Math.round((totalUserEarnedScore / totalMaxPossibleScore) * 100) : 0;
+    const finalSkillScoresForPrompt = Object.keys(finalSkillScores).length ? finalSkillScores : "Not available";
+    const totalEarned = [...mcqScores, ...codingScores, ...shortAnswerScores].reduce((acc, s) => acc + s.earned, 0);
+    const totalMax = [...mcqScores, ...codingScores, ...shortAnswerScores].reduce((acc, s) => acc + s.max, 0);
+    const finalScore = totalMax > 0 ? Math.round((totalEarned / totalMax) * 100) : 0;
     
-    const finalSkillScores: Record<string, number> = {};
-    for (const skill in skillScores) {
-      const { earned, max } = skillScores[skill];
-      finalSkillScores[skill] = max > 0 ? Math.round((earned / max) * 100) : 0;
+    // --- 7. Build summary strings for final feedback prompt ---
+    const mcqSummary = `Total MCQs: ${mcqs.length}, Correct: ${mcqScores.filter(s => s.earned === 1).length}`;
+    const avgCodingPassRate = codingQs.length > 0
+        ? Math.round((codingQs.reduce((sum, q) => sum + (Number(q.testCasesPassed ?? 0) / (Number(q.totalTestCases ?? 1))), 0) / codingQs.length) * 100)
+        : 0;
+    const codingSummary = `Total coding questions: ${codingQs.length}, avg pass rate: ${avgCodingPassRate}%`;
+
+    // --- 8. Generate final feedback (Prompt B) ---
+    const finalPromptText = `
+    FINAL_SKILL_SCORES: ${JSON.stringify(finalSkillScoresForPrompt)}
+    MCQ_SUMMARY: ${mcqSummary}
+    CODING_SUMMARY: ${codingSummary}
+    SHORT_ANSWERS_SUMMARY: ${shortAnswerSummary}
+
+    TASK:
+    1) Return a short overall feedback paragraph (one or two sentences).
+    2) For each skill in FINAL_SKILL_SCORES, return a bullet with the skill name, its score, and one short action item (max 10 words) to improve.
+    3) Provide 3 concise study/practice suggestions across skills (each max 10 words).
+
+    OUTPUT FORMAT:
+    Return a JSON object exactly matching:
+    {
+      "overall": "<one- or two-sentence string>",
+      "skills": [
+        {"skill": "<name>", "score": <number_or_string>, "advice": "<string>"},
+        ...
+      ],
+      "suggestions": ["<string>", "<string>", "<string>"]
     }
 
-    // --- GENERATE FEEDBACK ---
-    const feedbackPrompt = `A candidate has just completed an assessment for a job.
-    - Final Score: ${finalScore}/100
-    - Performance by Skill: ${JSON.stringify(finalSkillScores) || 'Not available'}
+    Rules:
+    - If a skill value is the string "Not available", pass it through as a string.
+    - Scores that are numbers must be numbers (not strings).
+    - Output ONLY valid JSON — nothing else.
+    `;
 
-    Based ONLY on this data, provide a concise (2-3 sentences) and encouraging feedback summary for the candidate.
-    Highlight one key strength and one main area for improvement. Suggest a specific, actionable next step for them.
-    If the scores are low or data is missing, provide general encouragement and suggest reviewing the basics.
-    Your response must be a simple string of text.`;
-    
     const { output: aiFeedback } = await ai.generate({
-      prompt: feedbackPrompt,
-      output: { schema: z.string() },
-      config: { temperature: 0.8 },
+        prompt: finalPromptText,
+        output: {
+            format: "json",
+            schema: FinalFeedbackSchema,
+        },
+        config: { temperature: 0.8 },
     });
 
-    // --- RETURN FINAL OBJECT ---
+    // --- 9. Assemble and return final object ---
+    const feedbackString = aiFeedback ? aiFeedback.overall + '\n\n' + aiFeedback.suggestions.map(s => `- ${s}`).join('\n') : 'Feedback could not be generated at this time.';
+
+    // Calculate correctness for mcqs and coding questions
+    evaluatedResponses = evaluatedResponses.map(resp => {
+        const mcq = mcqs.find(q => q.id === resp.questionId);
+        if (mcq) return { ...resp, isCorrect: mcqScores.find(s => s.questionId === mcq.id)?.earned === 1 };
+        
+        const codingQ = codingQs.find(q => q.id === resp.questionId);
+        if (codingQ) return { ...resp, isCorrect: codingScores.find(s => s.questionId === codingQ.id)?.earned === 1 };
+
+        return resp; // Short answers already handled
+    });
+
     return {
       ...attempt,
       responses: evaluatedResponses,
       finalScore,
       skillScores: finalSkillScores,
-      aiFeedback: aiFeedback || 'Feedback could not be generated at this time.',
+      aiFeedback: feedbackString,
     };
   }
 );
 
 export async function scoreAssessment(attempt: AssessmentAttempt): Promise<AssessmentAttempt> {
-  const scoredData = await scoreAssessmentFlow(attempt);
-  return scoredData;
+    const scoredData = await scoreAssessmentFlow(attempt);
+    return scoredData;
 }
