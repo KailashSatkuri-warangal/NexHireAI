@@ -8,7 +8,9 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { getFirestore, doc, getDoc, collection, writeBatch, getDocs, query, limit } from 'firebase/firestore';
 import { initializeFirebaseForServer } from '@/firebase/server-init';
-import type { Question, Role, Assessment } from '@/lib/types';
+import type { Question, Role } from '@/lib/types';
+import type { Assessment } from '@/lib/types';
+
 
 // Zod schema for a single generated question
 const GeneratedQuestionSchema = z.object({
@@ -73,10 +75,10 @@ const generateAssessmentFlow = ai.defineFlow(
           - Create a mix of difficulties: 2 Easy, 2 Medium, 1 Hard.
           - For MCQs, create scenario-based questions, not simple definitions. Provide 4 options. 'correctAnswer' must be the full text of the correct option.
           - For Short Answer, ask for one-line code fixes or brief conceptual comparisons. 'correctAnswer' should be the ideal answer.
-          - For Coding, provide a clear problem statement and 3-5 test cases. The 'correctAnswer' field is not needed for coding questions.
-          - Ensure all fields in the schema are present for each question, even if optional (e.g., 'options: []' for non-mcq).
+          - For Coding, provide a clear problem statement and 3-5 test cases. 'starterCode' is optional. The 'correctAnswer' field is not needed for coding questions.
+          - Ensure all fields in the schema are present for each question, even if optional (e.g., use 'options: []' for non-mcq).
 
-          Adhere strictly to the JSON output schema, which is an array of 5 question objects.`,
+          Adhere strictly to the JSON output schema, which is an array of 5 question objects. Your response MUST be a valid JSON array.`,
           output: { schema: QuestionsForSkillSchema },
           config: { temperature: 0.7 }
         });
@@ -103,8 +105,8 @@ const generateAssessmentFlow = ai.defineFlow(
           
           **INSTRUCTIONS:**
           - Create a mix of difficulties: 2 Easy, 2 Medium, 1 Hard.
-          - Ensure all fields in the schema are present for each question.
-          - Adhere strictly to the JSON output schema, which is an array of 5 question objects.`,
+          - Ensure all fields in the schema are present for each question, even if optional.
+          - Adhere strictly to the JSON output schema, which is an array of 5 question objects. Your response MUST be a valid JSON array.`,
           output: { schema: QuestionsForSkillSchema },
           config: { temperature: 0.8 }
       });
