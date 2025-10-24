@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { useAssessmentStore } from '@/hooks/use-assessment-store';
@@ -17,12 +17,14 @@ import { doc, setDoc } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import type { AssessmentAttempt, UserResponse } from '@/lib/types';
 import { CodeEditor } from '@/components/assessment/CodeEditor';
+import { scoreAssessment } from '@/ai/flows/score-assessment-flow';
 
 const AssessmentRunner = () => {
   const router = useRouter();
   const params = useParams();
   const { toast } = useToast();
   const { firestore } = initializeFirebase();
+  const [isSubmitting, startSubmitting] = useTransition();
   
   const { user, isLoading: authLoading } = useAuth();
   const {
@@ -63,50 +65,62 @@ const AssessmentRunner = () => {
 
       if (remaining <= 0) {
         clearInterval(interval);
-        toast({ title: "Time's up!", description: "Submitting your assessment automatically." });
-        handleSubmit();
+        if (!isSubmitting) { // Ensure handleSubmit isn't already running
+           toast({ title: "Time's up!", description: "Submitting your assessment automatically." });
+           handleSubmit();
+        }
       }
     }, 1000);
 
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startTime, assessment, toast]);
+  }, [startTime, assessment]);
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!user || !assessment) {
         toast({ title: "Error", description: "User or assessment data not found.", variant: "destructive" });
         return;
     }
     
-    toast({ title: "Submitting Assessment", description: "Your answers are being saved. Please wait." });
+    startSubmitting(async () => {
+      toast({ title: "Submitting Assessment", description: "Evaluating your answers and generating feedback. Please wait." });
 
-    const finalResponses = Object.values(responses).map(r => ({
-      ...r,
-      timeTaken: (Date.now() - startTime!) / 1000 / assessment.questions.length, // Approximate time per question
-    })) as UserResponse[];
+      const finalResponses: UserResponse[] = Object.values(responses).map(r => ({
+        ...r,
+        questionId: r.questionId || '',
+        timeTaken: (Date.now() - startTime!) / 1000 / assessment.questions.length, // Approximate
+        skill: r.skill || '',
+        difficulty: r.difficulty || 'Easy',
+      }));
 
-    const attempt: Omit<AssessmentAttempt, 'id'> = {
-        userId: user.id,
-        assessmentId: assessment.id,
-        roleId: assessment.roleId,
-        startedAt: startTime!,
-        submittedAt: Date.now(),
-        responses: finalResponses,
-        // Scoring fields will be added by a backend function
-    };
-    
-    try {
-        const attemptDocRef = doc(firestore, `users/${user.id}/assessments`, assessment.id);
-        await setDoc(attemptDocRef, attempt);
-        
-        toast({ title: "Assessment Submitted!", description: "Your results will be available on your dashboard shortly." });
-        reset();
-        router.push('/dashboard');
+      const attemptShell: Omit<AssessmentAttempt, 'id' | 'finalScore' | 'skillScores' | 'aiFeedback' | 'responses'> & { responses: UserResponse[] } = {
+          userId: user.id,
+          assessmentId: assessment.id,
+          roleId: assessment.roleId,
+          startedAt: startTime!,
+          submittedAt: Date.now(),
+          responses: finalResponses,
+          questions: assessment.questions, // Pass full question data for scoring
+      };
 
-    } catch (error) {
-        console.error("Error submitting assessment:", error);
-        toast({ title: "Submission Failed", description: (error as Error).message || "Could not save your assessment.", variant: "destructive" });
-    }
+      try {
+          const scoredAttempt = await scoreAssessment(attemptShell);
+          const attemptToSave = { ...scoredAttempt };
+          // @ts-ignore
+          delete attemptToSave.questions; // Don't save full questions back to the attempt doc
+
+          const attemptDocRef = doc(firestore, `users/${user.id}/assessments`, assessment.id);
+          await setDoc(attemptDocRef, attemptToSave);
+          
+          toast({ title: "Assessment Submitted!", description: "Your results are now available on your dashboard." });
+          reset();
+          router.push('/dashboard');
+
+      } catch (error) {
+          console.error("Error submitting and scoring assessment:", error);
+          toast({ title: "Submission Failed", description: (error as Error).message || "Could not save and score your assessment.", variant: "destructive" });
+      }
+    });
   };
 
 
@@ -114,6 +128,7 @@ const AssessmentRunner = () => {
     return (
       <div className="flex items-center justify-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
+        <p className="ml-4">Loading Assessment...</p>
       </div>
     );
   }
@@ -123,6 +138,7 @@ const AssessmentRunner = () => {
   const currentResponse = responses[currentQuestion.id];
 
   const formatTime = (seconds: number) => {
+    if (seconds < 0) return '00:00';
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
@@ -139,7 +155,7 @@ const AssessmentRunner = () => {
       <Card className="w-full max-w-6xl bg-card/70 backdrop-blur-sm border-border/20 shadow-xl">
         <CardHeader className="border-b">
            <div className="flex justify-between items-center">
-             <CardTitle className="text-2xl">Skill Assessment</CardTitle>
+             <CardTitle className="text-2xl">{assessment.roleName} Assessment</CardTitle>
              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary font-semibold">
                 <Timer className="h-5 w-5" />
                 <span>{timeLeft !== null ? formatTime(timeLeft) : 'Loading...'}</span>
@@ -192,17 +208,18 @@ const AssessmentRunner = () => {
           </CardContent>
         )}
 
-        <CardFooter className="flex justify-between border-t">
-            <Button variant="outline" onClick={prevQuestion} disabled={currentQuestionIndex === 0}>
+        <CardFooter className="flex justify-between border-t pt-6">
+            <Button variant="outline" onClick={prevQuestion} disabled={currentQuestionIndex === 0 || isSubmitting}>
                 <ChevronLeft className="mr-2 h-4 w-4" /> Previous
             </Button>
             
             {currentQuestionIndex === assessment.questions.length - 1 ? (
-                <Button onClick={handleSubmit}>
-                    Submit Assessment <Send className="ml-2 h-4 w-4" />
+                <Button onClick={handleSubmit} disabled={isSubmitting}>
+                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="ml-2 h-4 w-4" />}
+                    {isSubmitting ? 'Submitting...' : 'Submit Assessment'}
                 </Button>
             ) : (
-                <Button onClick={nextQuestion}>
+                <Button onClick={nextQuestion} disabled={isSubmitting}>
                     Next <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
             )}

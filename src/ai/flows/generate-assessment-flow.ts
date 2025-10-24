@@ -8,7 +8,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { getFirestore, doc, getDoc, collection, writeBatch, getDocs, query, limit } from 'firebase/firestore';
 import { initializeFirebaseForServer } from '@/firebase/server-init';
-import type { Question, Assessment, Role } from '@/lib/types';
+import type { Question, Role, Assessment } from '@/lib/types';
 
 // Zod schema for a single generated question
 const QuestionSchema = z.object({
@@ -80,13 +80,13 @@ const generateAssessmentFlow = ai.defineFlow(
             - 'questions': An array of exactly 5 assessment questions for that specific sub-skill.
         2. 'combinedQuestions': An array of exactly 5 complex, scenario-based questions that integrate knowledge across multiple of the role's sub-skills.
         
-        For every single question, ensure it has the properties: 'questionText', 'type', 'difficulty', 'timeLimit', and other relevant fields.
+        For every single question, ensure it has the properties: 'questionText', 'type', 'difficulty', 'timeLimit', and other relevant fields based on type.
 
         **IMPORTANT QUESTION DESIGN INSTRUCTIONS:**
-        - **MCQs**: Do not ask simple definitions. Instead, create scenario-based questions, code-output prediction questions, or "Which of the following is NOT..." questions to test deeper understanding.
-        - **Short Answer**: Ask for one-line code fixes, brief conceptual comparisons (e.g., "Explain the main difference between X and Y"), or have the user fill in a missing piece of a code block.
-        - **Coding**: Create a clear problem statement. For 'Easy' questions, provide simple starter code. For 'Medium' and 'Hard', the starter code can be more of a basic boilerplate. Include 3-5 diverse test cases.
-        - **Difficulty Mix**: For each set of 5 questions per skill, ensure a mix of difficulties: 2 Easy, 2 Medium, 1 Hard.
+        - **MCQs**: Do not ask simple definitions. Create scenario-based questions, code-output prediction questions, or "Which of the following is NOT..." questions to test deeper understanding. Provide 4 options. The 'correctAnswer' should be the full text of the correct option.
+        - **Short Answer**: Ask for one-line code fixes, brief conceptual comparisons (e.g., "Explain the main difference between X and Y in one sentence"), or have the user fill in a missing piece of a code block. The 'correctAnswer' field should contain the ideal answer.
+        - **Coding**: Create a clear problem statement. For 'Easy' questions, provide simple starter code. For 'Medium' and 'Hard', the starter code can be more of a basic boilerplate. Include 3-5 diverse test cases. The 'correctAnswer' field is not needed for coding questions.
+        - **Difficulty Mix**: For each set of 5 questions per skill, ensure a mix of difficulties: 2 Easy, 2 Medium, 1 Hard. Do the same for the combined questions.
 
         Adhere strictly to the JSON output schema.`,
         output: { schema: GeneratedRoleQuestionsSchema },
@@ -98,6 +98,7 @@ const generateAssessmentFlow = ai.defineFlow(
       }
 
       const batch = writeBatch(firestore);
+      const questionIds: string[] = [];
 
       // Save sub-skill questions
       for (const skillGroup of generatedData.skillQuestions) {
@@ -110,6 +111,7 @@ const generateAssessmentFlow = ai.defineFlow(
           };
           batch.set(questionDocRef, newQuestion);
           allQuestions.push({ id: questionDocRef.id, ...newQuestion });
+          questionIds.push(questionDocRef.id);
         }
       }
 
@@ -123,6 +125,7 @@ const generateAssessmentFlow = ai.defineFlow(
        };
        batch.set(questionDocRef, newQuestion);
        allQuestions.push({ id: questionDocRef.id, ...newQuestion });
+       questionIds.push(questionDocRef.id);
       }
       
       await batch.commit();
@@ -134,6 +137,7 @@ const generateAssessmentFlow = ai.defineFlow(
     const assessment: Assessment = {
         id: `assessment_${roleId}_${Date.now()}`,
         roleId: roleId,
+        roleName: roleName,
         questions: allQuestions,
         totalTimeLimit,
     };

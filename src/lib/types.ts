@@ -30,15 +30,17 @@ export interface UserResponse {
     code?: string; // For coding
     language?: string; // Language used for coding question
     timeTaken: number;
-    isCorrect?: boolean; // Post-evaluation
-    testCasesPassed?: number; // Post-evaluation
-    totalTestCases?: number; // Post-evaluation
-    executionResult?: CodeExecutionResult; // Post-evaluation
+    // The following fields are added during the scoring process
+    isCorrect?: boolean; 
+    testCasesPassed?: number;
+    totalTestCases?: number; 
+    executionResult?: CodeExecutionResult[];
 }
 
 export interface Assessment {
     id: string;
     roleId: string;
+    roleName: string;
     questions: Question[];
     totalTimeLimit: number;
 }
@@ -46,14 +48,18 @@ export interface Assessment {
 export interface AssessmentAttempt {
     id: string;
     userId: string;
-    assessmentId: string; // Links to the generated Assessment
+    assessmentId: string;
     roleId: string;
+    roleName?: string;
     startedAt: number; // timestamp
     submittedAt?: number; // timestamp
     responses: UserResponse[];
+    // --- Post-Submission Fields ---
     finalScore?: number;
     skillScores?: Record<string, number>; // e.g. { 'React': 85, 'CSS': 90 }
     aiFeedback?: string;
+    // --- Only used for scoring flow, not saved ---
+    questions?: Question[];
 }
 
 export interface User {
