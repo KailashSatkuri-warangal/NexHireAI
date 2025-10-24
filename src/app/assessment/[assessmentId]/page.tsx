@@ -118,7 +118,7 @@ const AssessmentRunner = () => {
 
       } catch (error) {
           console.error("Error submitting and scoring assessment:", error);
-          const errorMessage = (error as Error).message || "Could not save and score your assessment.";
+          const errorMessage = (error as Error).message || "An unexpected error occurred.";
           const userFriendlyMessage = errorMessage.includes("429") 
             ? "Submission failed due to high traffic. Please wait a moment and try again."
             : errorMessage;
@@ -153,11 +153,11 @@ const AssessmentRunner = () => {
   }
 
   return (
-    <div className="relative min-h-[calc(100vh-5rem)] w-full bg-secondary p-4">
+    <div className="relative min-h-[calc(100vh-5rem)] w-full bg-secondary p-4 flex flex-col">
       <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.1),rgba(255,255,255,0))]"></div>
       
-      <Card className="w-full max-w-6xl mx-auto bg-card/70 backdrop-blur-sm border-border/20 shadow-xl">
-        <CardHeader className="border-b sticky top-[80px] bg-card/80 backdrop-blur-sm z-20">
+      <Card className="w-full max-w-6xl mx-auto bg-card/70 backdrop-blur-sm border-border/20 shadow-xl flex flex-col flex-grow">
+        <CardHeader className="border-b">
            <div className="flex justify-between items-center">
              <CardTitle className="text-2xl">{assessment.roleName} Assessment</CardTitle>
              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary font-semibold">
@@ -171,7 +171,7 @@ const AssessmentRunner = () => {
            </div>
         </CardHeader>
         
-        <div className="overflow-y-auto">
+        <div className="flex-grow overflow-y-auto">
              {currentQuestion.type === 'coding' ? (
                 <CodeEditor 
                     question={currentQuestion}
@@ -214,7 +214,7 @@ const AssessmentRunner = () => {
             )}
         </div>
 
-        <CardFooter className="flex justify-between border-t pt-6 sticky bottom-0 bg-card/80 backdrop-blur-sm z-10">
+        <CardFooter className="flex justify-between border-t pt-6">
             <Button variant="outline" onClick={prevQuestion} disabled={currentQuestionIndex === 0 || isSubmitting}>
                 <ChevronLeft className="mr-2 h-4 w-4" /> Previous
             </Button>
