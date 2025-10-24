@@ -17,7 +17,7 @@ import { motion } from 'framer-motion';
 type View = 'profile' | 'edit' | 'analysis';
 
 export default function ProfilePage() {
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, refreshUser } = useAuth();
   const router = useRouter();
   const [profileData, setProfileData] = useState<UserType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -67,14 +67,30 @@ export default function ProfilePage() {
   
   const handleProfileUpdate = async (formData: Partial<UserType>) => {
     if (!user || !profileData) return;
+
+    // Create a deep copy to avoid direct state mutation issues
+    const updatedData = JSON.parse(JSON.stringify(profileData));
+
+    // Merge the new form data into the copied state
+    for (const key in formData) {
+        if (Object.prototype.hasOwnProperty.call(formData, key)) {
+            const formValue = formData[key as keyof typeof formData];
+            if (typeof formValue === 'object' && formValue !== null && !Array.isArray(formValue) && updatedData[key] && typeof updatedData[key] === 'object') {
+                // Deep merge for nested objects like candidateSpecific
+                updatedData[key] = { ...updatedData[key], ...formValue };
+            } else {
+                // Simple overwrite for other properties
+                updatedData[key] = formValue;
+            }
+        }
+    }
     
     try {
         const userDocRef = doc(firestore, 'users', user.id);
-        // This is the broken save logic you wanted to revert to
-        await setDoc(userDocRef, formData, { merge: true });
+        await setDoc(userDocRef, updatedData, { merge: true });
         
-        // This state update is also not ideal, but it's part of the reverted state
-        setProfileData(prev => ({...prev, ...formData} as UserType));
+        setProfileData(updatedData);
+        await refreshUser(); // Refresh global user state
 
         toast({ title: "Success", description: "Profile updated successfully!" });
         handleViewChange('profile');
@@ -112,16 +128,14 @@ export default function ProfilePage() {
             }
         };
         
-        // Use the existing (and flawed) update handler
         await handleProfileUpdate(updatePayload);
         
-        // Manually update state for immediate UI feedback before view change
         setProfileData(prev => prev ? ({
           ...prev,
           analysis: { summary: analysisResult }
         }) : null);
 
-        handleViewChange('analysis', 'right');
+        handleViewChange('analysis');
 
       } catch(error) {
          console.error("Error running analysis:", error);
@@ -129,16 +143,18 @@ export default function ProfilePage() {
       }
   }
 
-  const handleViewChange = (newView: View, direction?: 'left' | 'right') => {
-      if (view === 'profile') {
-          if (newView === 'edit') setRotation(prev => prev + 180);
-          if (newView === 'analysis') setRotation(prev => prev - 180);
-      } else {
-          // Simplified reset logic from any other view
-          if (view === 'edit') setRotation(prev => prev - 180);
-          if (view === 'analysis') setRotation(prev => prev + 180);
-      }
-      setView(newView);
+  const handleViewChange = (newView: View) => {
+    const isReturningToProfile = newView === 'profile';
+
+    if (view === 'profile' && newView === 'edit') {
+      setRotation(rotation + 180);
+    } else if (view === 'profile' && newView === 'analysis') {
+      setRotation(rotation - 180);
+    } else if (isReturningToProfile) {
+      if (view === 'edit') setRotation(rotation - 180);
+      if (view === 'analysis') setRotation(rotation + 180);
+    }
+    setView(newView);
   }
 
   if (isLoading || authLoading || !profileData) {
@@ -148,7 +164,7 @@ export default function ProfilePage() {
   const hasAnalysis = !!profileData.analysis?.summary;
 
   return (
-    <div className="relative min-h-[calc(100vh-5rem)] w-full bg-secondary py-8">
+    <div className="relative h-[calc(100vh-5rem)] w-full bg-secondary flex items-center justify-center">
       <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.1),rgba(255,255,255,0))]"></div>
       
       <div className="container mx-auto px-4 md:px-6 flex items-center justify-center">
@@ -164,21 +180,22 @@ export default function ProfilePage() {
                     <ProfileCard 
                       profileData={profileData} 
                       onRunAnalysis={runAnalysis}
-                      onEdit={() => handleViewChange('edit', 'left')}
-                      onViewInsights={hasAnalysis ? () => handleViewChange('analysis', 'right') : undefined}
-                      onAvatarUpload={(file) => handleProfileUpdate({ avatarUrl: URL.createObjectURL(file)})} // simplified for UI
+                      onEdit={() => handleViewChange('edit')}
+                      onViewInsights={hasAnalysis ? () => handleViewChange('analysis') : undefined}
+                      onAvatarUpload={(file) => handleProfileUpdate({ avatarUrl: URL.createObjectURL(file)})}
                     />
                 </div>
 
                 {/* Edit Face */}
                 <div className="absolute w-full h-full backface-hidden rotate-y-180" style={{ display: view === 'edit' ? 'block' : 'none' }}>
-                     <div className="w-full h-full rounded-3xl border border-white/10 bg-card/80 p-6 shadow-2xl backdrop-blur-xl dark:border-white/20 dark:bg-black/40">
-                        {/* This is the state with no scroll container */}
-                        <EditProfileForm 
-                            profileData={profileData} 
-                            onSave={handleProfileUpdate} 
-                            onCancel={() => handleViewChange('profile')} 
-                        />
+                     <div className="w-full h-full rounded-3xl border border-white/10 bg-card/80 p-6 shadow-2xl backdrop-blur-xl dark:border-white/20 dark:bg-black/40 flex flex-col">
+                        <div className="flex-grow max-h-full overflow-y-auto pr-4">
+                            <EditProfileForm 
+                                profileData={profileData} 
+                                onSave={handleProfileUpdate} 
+                                onCancel={() => handleViewChange('profile')} 
+                            />
+                        </div>
                     </div>
                 </div>
 
