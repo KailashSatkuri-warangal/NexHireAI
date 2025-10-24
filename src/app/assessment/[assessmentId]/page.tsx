@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
@@ -18,7 +17,6 @@ import { initializeFirebase } from '@/firebase';
 import type { AssessmentAttempt, UserResponse, Question, CodeExecutionResult } from '@/lib/types';
 import { CodeEditor } from '@/components/assessment/CodeEditor';
 import { scoreAssessment } from '@/ai/flows/score-assessment-flow';
-import { generateFeedback } from '@/ai/flows/generate-feedback-flow';
 import { runAllCode } from '@/ai/flows/run-all-code-flow';
 
 const AssessmentRunner = () => {
@@ -87,48 +85,35 @@ const AssessmentRunner = () => {
     
     startSubmitting(async () => {
       toast({ title: "Submitting Assessment", description: "Evaluating your answers. This may take a moment." });
-
-      const finalResponses: UserResponse[] = Object.values(responses).map(response => ({
+      
+      const filledResponses = Object.values(responses).map(response => ({
         ...response,
-        timeTaken: (Date.now() - startTime) / assessment.questions.length, // Approximate
+        timeTaken: (Date.now() - (startTime || Date.now())) / (assessment.questions.length || 1), // Approximate time per question
       }));
 
-      const attemptShell: Omit<AssessmentAttempt, 'id'> & { questions: Question[] } = {
+      const attemptShell: AssessmentAttempt = {
+          id: assessment.id,
           userId: user.id,
           assessmentId: assessment.id,
           roleId: assessment.roleId,
           startedAt: startTime,
           submittedAt: Date.now(),
-          responses: finalResponses,
-          questions: assessment.questions,
+          responses: filledResponses,
+          questions: assessment.questions, // Pass questions for scoring context
       };
 
       try {
-          // Step 1: Get numerical scores
-          const scoredResult = await scoreAssessment(attemptShell);
+          const finalAttempt = await scoreAssessment(attemptShell);
           
-          toast({ title: "Scoring Complete", description: "Generating AI feedback..." });
-
-          // Step 2: Generate AI feedback separately
-          const feedback = await generateFeedback({
-            finalScore: scoredResult.finalScore,
-            skillScores: scoredResult.skillScores,
-          });
-
-          // Step 3: Combine and save
-          const finalAttempt: AssessmentAttempt = {
-            id: assessment.id,
-            userId: attemptShell.userId,
-            assessmentId: attemptShell.assessmentId,
-            roleId: attemptShell.roleId,
-            startedAt: attemptShell.startedAt,
-            submittedAt: attemptShell.submittedAt,
-            aiFeedback: feedback,
-            ...scoredResult,
+          // The flow now returns the complete object including feedback
+          const attemptToSave: AssessmentAttempt = {
+            ...finalAttempt,
+            userId: user.id, // ensure userId is present
           };
-          
+          delete attemptToSave.questions; // Don't save questions back to the attempt doc
+
           const attemptDocRef = doc(firestore, `users/${user.id}/assessments`, assessment.id);
-          await setDoc(attemptDocRef, finalAttempt);
+          await setDoc(attemptDocRef, attemptToSave);
           
           toast({ title: "Assessment Submitted!", description: "Your results are now available on your dashboard." });
           reset();
@@ -138,7 +123,7 @@ const AssessmentRunner = () => {
           console.error("Error submitting and scoring assessment:", error);
           const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
           const userFriendlyMessage = errorMessage.includes("429") 
-            ? "Submission failed due to high traffic during scoring. This can be intermittent. Please wait a moment and try submitting again."
+            ? "Submission failed due to high traffic during AI evaluation. This can be intermittent. Please wait a moment and try submitting again."
             : `An unexpected error occurred during submission. Details: ${errorMessage}`;
           toast({ title: "Submission Failed", description: userFriendlyMessage, variant: "destructive" });
       }

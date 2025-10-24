@@ -1,8 +1,7 @@
 
 'use server';
 /**
- * @fileOverview A flow to score a completed assessment and calculate scores.
- * AI feedback generation is handled separately.
+ * @fileOverview A flow to score a completed assessment, calculate scores, and generate feedback.
  */
 
 import { ai } from '@/ai/genkit';
@@ -10,14 +9,7 @@ import { z } from 'zod';
 import type { AssessmentAttempt, Question, UserResponse } from '@/lib/types';
 
 
-// This is the output of the flow, containing only the scored fields.
-const ScoredFieldsSchema = z.object({
-  finalScore: z.number(),
-  skillScores: z.record(z.string(), z.number()),
-  responses: z.array(z.custom<UserResponse>()),
-});
-
-// New schema for the batched scoring of short answers.
+// Schema for the batched scoring of short answers.
 const ShortAnswerScoresSchema = z.array(
     z.object({
         questionId: z.string().describe("The ID of the question being scored."),
@@ -25,12 +17,11 @@ const ShortAnswerScoresSchema = z.array(
     })
 );
 
-
 export const scoreAssessmentFlow = ai.defineFlow(
   {
     name: 'scoreAssessmentFlow',
-    inputSchema: z.custom<Omit<AssessmentAttempt, 'id' | 'finalScore' | 'skillScores' | 'aiFeedback'>>(),
-    outputSchema: ScoredFieldsSchema,
+    inputSchema: z.custom<AssessmentAttempt>(),
+    outputSchema: z.custom<AssessmentAttempt>(),
   },
   async (attempt) => {
     const { questions, responses } = attempt;
@@ -150,15 +141,28 @@ export const scoreAssessmentFlow = ai.defineFlow(
       finalSkillScores[skill] = max > 0 ? Math.round((earned / max) * 100) : 0;
     }
 
+    // --- GENERATE FEEDBACK ---
+    const { output: aiFeedback } = await ai.generate({
+      prompt: `A candidate has just completed an assessment. Their final score is ${finalScore.toFixed(2)}/100.
+      Their performance by skill was: ${JSON.stringify(finalSkillScores)}.
+      Based on this data, provide a concise (2-3 sentences) and encouraging feedback summary for the candidate.
+      Highlight one key strength and one main area for improvement. Suggest a specific, actionable next step for them.`,
+      output: { schema: z.string() },
+      config: { temperature: 0.8 },
+    });
+
+    // --- RETURN FINAL OBJECT ---
     return {
+      ...attempt,
       responses: evaluatedResponses,
       finalScore,
       skillScores: finalSkillScores,
+      aiFeedback: aiFeedback || 'Feedback could not be generated at this time.',
     };
   }
 );
 
-export async function scoreAssessment(attempt: Omit<AssessmentAttempt, 'id'> & { questions: Question[] }): Promise<z.infer<typeof ScoredFieldsSchema>> {
+export async function scoreAssessment(attempt: AssessmentAttempt): Promise<AssessmentAttempt> {
   const scoredData = await scoreAssessmentFlow(attempt);
   return scoredData;
 }
