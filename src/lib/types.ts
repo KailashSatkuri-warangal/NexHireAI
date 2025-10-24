@@ -1,78 +1,54 @@
 
-export type Role = 'candidate' | 'recruiter';
+export type RoleType = 'candidate' | 'recruiter' | 'admin';
 
-export type ExperienceLevel = 'Fresher' | 'Intermediate' | 'Experienced';
-
-export interface Experience {
-  title: string;
-  company: string;
-  startDate?: string;
-  endDate?: string;
-  description?: string;
+export interface Question {
+    id: string;
+    questionText: string;
+    type: 'mcq' | 'short' | 'coding';
+    options?: string[];
+    correctAnswer?: string; // For MCQ/short
+    testCases?: { input: string; expectedOutput: string; }[];
+    difficulty: number; // 1-10
+    timeLimit: number; // in seconds
+    tags: string[];
+    maxScore: number;
+    skill: string;
+    starterCode?: string;
 }
 
-export interface Project {
-  title: string;
-  description?: string;
-  url?: string;
+export interface UserResponse {
+    questionId: string;
+    skill: string;
+    difficulty: number;
+    answer?: string; // For MCQ/short
+    code?: string; // For coding
+    timeTaken: number;
+    isCorrect?: boolean; // Post-evaluation
+    testCasesPassed?: number; // Post-evaluation
+    totalTestCases?: number; // Post-evaluation
 }
 
-export interface Achievement {
-  title: string;
-  description?: string;
-}
-
-
-export interface CandidateProfile {
-  collegeOrUniversity?: string;
-  currentCompanyOrInternship?: string;
-  experienceLevel?: ExperienceLevel;
-  yearsOfExperience?: number;
-  skills?: string[];
-  bio?: string;
-  locationPreferences?: string[];
-  experiences?: Experience[];
-  projects?: Project[];
-  achievements?: Achievement[];
-}
-
-export interface RecruiterProfile {
-  mobileNumber?: string;
-  companyName?: string;
-  designation?: string;
-  companyWebsite?: string;
-  yearsOfExperience?: number;
-  hiringFocus?: string[];
-  locationPreferences?: string[];
-  notes?: string;
-}
-
-export interface AnalysisSummary {
-  topRoles?: { role: string; score: number }[];
-  readinessScore?: number;
-  gapAnalysis?: string[];
-  suggestedLearning?: { task: string; estWeeks: number }[];
-  resumeHealth?: {
-    contact: boolean;
-    projects: boolean;
-    skills: boolean;
-    keywords: boolean;
-  };
+export interface AssessmentAttempt {
+    id: string;
+    roleId: string;
+    startedAt: number; // timestamp
+    submittedAt?: number; // timestamp
+    questions: UserResponse[];
+    finalScore?: number;
+    skillScores?: Record<string, number>;
+    aiFeedback?: string;
 }
 
 export interface User {
   id: string;
   name: string;
   email: string;
-  role: Role;
+  role: RoleType;
   avatarUrl?: string;
   linkedinUrl?: string;
   githubUrl?: string;
   portfolioUrl?: string;
   resumeUrl?: string;
-  analysis?: {
-    summary: AnalysisSummary;
-  };
-  candidateSpecific?: CandidateProfile;
-  recruiterSpecific?: RecruiterProfile;
+  xp?: number;
+  badges?: string[];
 }

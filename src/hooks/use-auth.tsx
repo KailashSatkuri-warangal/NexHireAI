@@ -7,6 +7,7 @@ import {
   useState,
   useEffect,
   ReactNode,
+  useCallback,
 } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -18,7 +19,7 @@ import {
   User as FirebaseUser,
 } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
-import type { User, Role } from '@/lib/types';
+import type { User, RoleType } from '@/lib/types';
 import type { SignupData } from '@/lib/auth';
 import { initializeFirebase } from '@/firebase';
 
@@ -28,6 +29,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   signup: (signupData: SignupData) => Promise<void>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -38,25 +40,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { auth, firestore } = initializeFirebase();
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        const userDocRef = doc(firestore, 'users', firebaseUser.uid);
-        const userDoc = await getDoc(userDocRef);
-        if (userDoc.exists()) {
-          setUser({ id: firebaseUser.uid, ...userDoc.data() } as User);
-        } else {
-          // Handle case where user exists in Auth but not Firestore
-          setUser(null);
-        }
+  const fetchUserData = useCallback(async (firebaseUser: FirebaseUser) => {
+      const userDocRef = doc(firestore, 'users', firebaseUser.uid);
+      const userDoc = await getDoc(userDocRef);
+      if (userDoc.exists()) {
+        setUser({ id: firebaseUser.uid, ...userDoc.data() } as User);
       } else {
+        // This might happen if Firestore data isn't created yet or there's a lag.
+        console.warn(`User document not found for UID: ${firebaseUser.uid}`);
         setUser(null);
       }
       setIsLoading(false);
+  },[firestore]);
+
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        await fetchUserData(firebaseUser);
+      } else {
+        setUser(null);
+        setIsLoading(false);
+      }
     });
 
     return () => unsubscribe();
-  }, [auth, firestore]);
+  }, [auth, fetchUserData]);
+  
+  const refreshUser = async () => {
+    const firebaseUser = auth.currentUser;
+    if (firebaseUser) {
+        setIsLoading(true);
+        await fetchUserData(firebaseUser);
+    }
+  }
 
   const login = async (email: string, password: string) => {
     await signInWithEmailAndPassword(auth, email, password);
@@ -76,6 +93,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       role,
       avatarUrl: `https://picsum.photos/seed/${firebaseUser.uid}/200`,
+      xp: 0,
+      badges: [],
     };
 
     const userDocRef = doc(firestore, 'users', firebaseUser.uid);
@@ -96,6 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login,
     signup,
     logout,
+    refreshUser
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,141 +1,116 @@
 {
   "entities": {
-    "UserProfile": {
-      "title": "User Profile",
-      "description": "Represents a user's basic profile information.",
+    "User": {
+      "title": "User",
+      "description": "Represents a user of the application.",
       "type": "object",
       "properties": {
-        "name": { "type": "string", "description": "The user's full name." },
-        "email": { "type": "string", "format": "email", "description": "The user's email address (read-only)." },
-        "role": { "type": "string", "enum": ["candidate", "recruiter"], "description": "The user's role in the application." },
-        "avatarUrl": { "type": "string", "format": "uri", "description": "URL for the user's avatar image." },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["candidate", "recruiter", "admin"] },
+        "avatarUrl": { "type": "string", "format": "uri" },
         "linkedinUrl": { "type": "string", "format": "uri" },
         "githubUrl": { "type": "string", "format": "uri" },
         "portfolioUrl": { "type": "string", "format": "uri" },
         "resumeUrl": { "type": "string", "format": "uri" },
-        "analysis": { "$ref": "#/backend/entities/Analysis" },
-        "candidateSpecific": { "$ref": "#/backend/entities/CandidateProfile" },
-        "recruiterSpecific": { "$ref": "#/backend/entities/RecruiterProfile" }
+        "xp": { "type": "number" },
+        "badges": { "type": "array", "items": { "type": "string" } }
       },
       "required": ["name", "email", "role"]
     },
-    "CandidateProfile": {
-      "title": "Candidate Profile",
-      "description": "Details specific to a candidate user.",
+    "Role": {
+      "title": "Assessment Role",
+      "description": "Defines a professional role and its associated skills for assessments.",
       "type": "object",
       "properties": {
-        "collegeOrUniversity": { "type": "string" },
-        "currentCompanyOrInternship": { "type": "string" },
-        "experienceLevel": { "type": "string", "enum": ["Fresher", "Intermediate", "Experienced"] },
-        "yearsOfExperience": { "type": "number" },
-        "skills": { "type": "array", "items": { "type": "string" } },
-        "bio": { "type": "string" },
-        "locationPreferences": { "type": "array", "items": { "type": "string" } },
-        "experiences": { "type": "array", "items": { "$ref": "#/backend/entities/Experience" } },
-        "projects": { "type": "array", "items": { "$ref": "#/backend/entities/Project" } },
-        "achievements": { "type": "array", "items": { "$ref": "#/backend/entities/Achievement" } }
-      }
-    },
-    "RecruiterProfile": {
-      "title": "Recruiter Profile",
-      "description": "Details specific to a recruiter user.",
-      "type": "object",
-      "properties": {
-        "mobileNumber": { "type": "string" },
-        "companyName": { "type": "string" },
-        "designation": { "type": "string" },
-        "companyWebsite": { "type": "string", "format": "uri" },
-        "yearsOfExperience": { "type": "number" },
-        "hiringFocus": { "type": "array", "items": { "type": "string" } },
-        "locationPreferences": { "type": "array", "items": { "type": "string" } },
-        "notes": { "type": "string" }
-      }
-    },
-     "Experience": {
-      "title": "Work Experience",
-      "description": "A single work experience entry.",
-      "type": "object",
-      "properties": {
-        "title": { "type": "string" },
-        "company": { "type": "string" },
-        "startDate": { "type": "string", "format": "date" },
-        "endDate": { "type": "string", "format": "date" },
-        "description": { "type": "string" }
-      }
-    },
-    "Project": {
-      "title": "Project",
-      "description": "A single project entry.",
-      "type": "object",
-      "properties": {
-        "title": { "type": "string" },
+        "name": { "type": "string" },
         "description": { "type": "string" },
-        "url": { "type": "string", "format": "uri" }
-      }
+        "subSkills": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["name", "subSkills"]
     },
-    "Achievement": {
-      "title": "Achievement",
-      "description": "A single achievement or award.",
+    "Question": {
+      "title": "Assessment Question",
+      "description": "A single question within a skill.",
       "type": "object",
       "properties": {
-        "title": { "type": "string" },
-        "description": { "type": "string" }
-      }
-    },
-    "Analysis": {
-      "title": "Profile Analysis",
-      "description": "Stores the results of resume and profile analysis.",
-      "type": "object",
-      "properties": {
-        "summary": { "$ref": "#/backend/entities/AnalysisSummary" }
-      }
-    },
-    "AnalysisSummary": {
-        "title": "Analysis Summary",
-        "description": "A summary of the profile analysis.",
-        "type": "object",
-        "properties": {
-            "topRoles": { 
-                "type": "array", 
-                "items": { 
-                    "type": "object",
-                    "properties": {
-                        "role": { "type": "string" },
-                        "score": { "type": "number" }
-                    }
-                } 
-            },
-            "readinessScore": { "type": "number" },
-            "gapAnalysis": { "type": "array", "items": { "type": "string" } },
-            "suggestedLearning": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "task": { "type": "string" },
-                        "estWeeks": { "type": "number" }
-                    }
-                }
-            },
-            "resumeHealth": {
-              "type": "object",
-              "properties": {
-                "contact": { "type": "boolean" },
-                "projects": { "type": "boolean" },
-                "skills": { "type": "boolean" },
-                "keywords": { "type": "boolean" }
-              }
+        "questionText": { "type": "string" },
+        "type": { "type": "string", "enum": ["mcq", "short", "coding"] },
+        "options": { "type": "array", "items": { "type": "string" } },
+        "correctAnswer": { "type": "string" },
+        "testCases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "input": { "type": "string" },
+              "expectedOutput": { "type": "string" }
             }
-        }
+          }
+        },
+        "difficulty": { "type": "number" },
+        "timeLimit": { "type": "number" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "maxScore": { "type": "number" },
+        "skill": { "type": "string" }
+      },
+      "required": ["questionText", "type", "difficulty", "timeLimit", "maxScore", "skill"]
+    },
+    "AssessmentAttempt": {
+      "title": "User Assessment Attempt",
+      "description": "Records a user's attempt at an assessment.",
+      "type": "object",
+      "properties": {
+        "roleId": { "type": "string" },
+        "startedAt": { "type": "number" },
+        "submittedAt": { "type": "number" },
+        "questions": {
+          "type": "array",
+          "items": { "$ref": "#/backend/entities/UserResponse" }
+        },
+        "finalScore": { "type": "number" },
+        "skillScores": { "type": "object" },
+        "aiFeedback": { "type": "string" }
+      },
+      "required": ["roleId", "startedAt"]
+    },
+    "UserResponse": {
+      "title": "User Response",
+      "description": "A user's single response within an assessment.",
+      "type": "object",
+      "properties": {
+        "questionId": { "type": "string" },
+        "skill": { "type": "string" },
+        "difficulty": { "type": "number" },
+        "answer": { "type": "string" },
+        "code": { "type": "string" },
+        "timeTaken": { "type": "number" },
+        "isCorrect": { "type": "boolean" },
+        "testCasesPassed": { "type": "number" },
+        "totalTestCases": { "type": "number" }
+      },
+      "required": ["questionId", "timeTaken"]
     }
   },
   "auth": {
-    "providers": ["password"]
+    "providers": ["password", "google.com"]
   },
   "firestore": {
     "/users/{userId}": {
-      "schema": { "$ref": "#/backend/entities/UserProfile" },
-      "description": "Stores user profile information, keyed by user ID."
+      "schema": { "$ref": "#/backend/entities/User" },
+      "description": "Stores user profile information."
+    },
+    "/users/{userId}/assessments/{assessmentId}": {
+      "schema": { "$ref": "#/backend/entities/AssessmentAttempt" },
+      "description": "Stores a user's individual assessment attempts."
+    },
+    "/roles/{roleId}": {
+      "schema": { "$ref": "#/backend/entities/Role" },
+      "description": "Stores the master list of professional roles and their sub-skills."
+    },
+    "/roles/{roleId}/questions/{questionId}": {
+      "schema": { "$ref": "#/backend/entities/Question" },
+      "description": "Stores all questions for a given role, organized under that role."
     }
   }
 }

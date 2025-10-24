@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
 import { ThemeToggle } from '../theme-toggle';
 import { useAuth } from '@/hooks/use-auth';
 import { Skeleton } from '../ui/skeleton';
-import { User } from 'lucide-react';
+import { User, LayoutDashboard, NotebookPen } from 'lucide-react';
 import { Navigation } from './navigation';
 
 export function Header() {
@@ -51,15 +51,15 @@ export function Header() {
           {isLoading ? (
             <div className="flex items-center gap-2">
               <Skeleton className="h-8 w-20" />
-              <Skeleton className="h-8 w-20" />
+              <Skeleton className="h-10 w-10 rounded-full" />
             </div>
           ) : user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                  <Avatar className="h-8 w-8">
+                <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+                  <Avatar className="h-10 w-10">
                     <AvatarImage src={user.avatarUrl} alt={user.name} />
-                    <AvatarFallback>{user.name ? user.name.charAt(0).toUpperCase() : <User className="h-4 w-4" />}</AvatarFallback>
+                    <AvatarFallback>{user.name ? user.name.charAt(0).toUpperCase() : <User className="h-5 w-5" />}</AvatarFallback>
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
@@ -74,7 +74,13 @@ export function Header() {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link href="/profile">Profile</Link>
+                  <Link href="/dashboard"><LayoutDashboard className="mr-2 h-4 w-4" />Dashboard</Link>
+                </DropdownMenuItem>
+                 <DropdownMenuItem asChild>
+                  <Link href="/skill-assessment"><NotebookPen className="mr-2 h-4 w-4" />Assessments</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/profile"><User className="mr-2 h-4 w-4" />Profile</Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={logout}>

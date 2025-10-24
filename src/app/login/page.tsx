@@ -10,10 +10,10 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Chrome, Briefcase, User, ArrowLeft, Mail, KeyRound, UserCircle } from 'lucide-react';
 import { Logo } from '@/components/logo';
-import { useAuth } from '@/hooks/use-auth.tsx';
+import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import type { Role } from '@/lib/types';
+import type { RoleType } from '@/lib/types';
 
 export default function AuthPage() {
   const [isLoginMode, setIsLoginMode] = useState(true);
@@ -127,7 +127,7 @@ function LoginForm({ setIsLoginMode }: { setIsLoginMode: (isLogin: boolean) => v
         try {
             await login(email, password);
             toast({ title: "Login Successful", description: "Welcome back!" });
-            router.push('/');
+            router.push('/dashboard');
         } catch (error) {
             toast({
                 title: "Login Failed",
@@ -198,7 +198,7 @@ function SignupForm({ setIsLoginMode }: { setIsLoginMode: (isLogin: boolean) => 
         const name = formData.get('name') as string;
         const email = formData.get('email') as string;
         const password = formData.get('password') as string;
-        const role = formData.get('role') as Role;
+        const role = formData.get('role') as RoleType;
 
         try {
             await signup({ name, email, password, role });
