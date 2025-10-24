@@ -22,7 +22,7 @@ export default function SkillAssessmentPage() {
   const router = useRouter();
   const { firestore } = initializeFirebase();
   const { toast } = useToast();
-  const setAssessment = useAssessmentStore((state) => state.setAssessment);
+  const assessmentStore = useAssessmentStore();
 
   const [roles, setRoles] = useState<Role[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -85,7 +85,7 @@ export default function SkillAssessmentPage() {
       try {
         const assessment = await generateAssessment(roleId);
         
-        setAssessment(assessment);
+        assessmentStore.setAssessment(assessment);
 
         toast({ title: 'Assessment Ready!', description: `Your test for ${roleName} is about to begin.` });
 
