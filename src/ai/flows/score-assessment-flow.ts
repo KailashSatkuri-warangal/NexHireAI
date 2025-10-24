@@ -137,11 +137,17 @@ export const scoreAssessmentFlow = ai.defineFlow(
     }
 
     // --- GENERATE FEEDBACK ---
+    const feedbackPrompt = `A candidate has just completed an assessment for a job.
+    - Final Score: ${finalScore}/100
+    - Performance by Skill: ${JSON.stringify(finalSkillScores) || 'Not available'}
+
+    Based ONLY on this data, provide a concise (2-3 sentences) and encouraging feedback summary for the candidate.
+    Highlight one key strength and one main area for improvement. Suggest a specific, actionable next step for them.
+    If the scores are low or data is missing, provide general encouragement and suggest reviewing the basics.
+    Your response must be a simple string of text.`;
+    
     const { output: aiFeedback } = await ai.generate({
-      prompt: `A candidate has just completed an assessment. Their final score is ${finalScore.toFixed(2)}/100.
-      Their performance by skill was: ${JSON.stringify(finalSkillScores)}.
-      Based on this data, provide a concise (2-3 sentences) and encouraging feedback summary for the candidate.
-      Highlight one key strength and one main area for improvement. Suggest a specific, actionable next step for them.`,
+      prompt: feedbackPrompt,
       output: { schema: z.string() },
       config: { temperature: 0.8 },
     });

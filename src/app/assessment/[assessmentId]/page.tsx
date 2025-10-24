@@ -101,9 +101,9 @@ const AssessmentRunner = () => {
       };
 
       try {
+          // The single flow now returns the complete object including scores and feedback
           const finalAttempt = await scoreAssessment(attemptShell);
           
-          // The flow now returns the complete object including feedback
           const attemptToSave: AssessmentAttempt = {
             ...finalAttempt,
             userId: user.id, // ensure userId is present
@@ -120,10 +120,7 @@ const AssessmentRunner = () => {
       } catch (error) {
           console.error("Error submitting and scoring assessment:", error);
           const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
-          const userFriendlyMessage = errorMessage.includes("429") 
-            ? "Submission failed due to high traffic during AI evaluation. This is rare but can happen. Please wait a moment and try submitting again."
-            : `An unexpected error occurred during submission. Details: ${errorMessage}`;
-          toast({ title: "Submission Failed", description: userFriendlyMessage, variant: "destructive" });
+          toast({ title: "Submission Failed", description: `An unexpected error occurred during submission. Details: ${errorMessage}`, variant: "destructive" });
       }
     });
   };
@@ -144,8 +141,6 @@ const AssessmentRunner = () => {
   const isCodingQuestion = currentQuestion.type === 'coding';
   // A coding question is "answered" if the execution result is available
   const isCodingAnswered = isCodingQuestion && !!currentResponse?.executionResult;
-  // A non-coding question is "answered" if the answer string is not empty
-  const isNonCodingAnswered = !isCodingQuestion && !!currentResponse?.answer?.trim();
   
   const canGoNext = !isCodingQuestion || isCodingAnswered;
 
