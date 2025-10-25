@@ -1,10 +1,36 @@
 
 'use client';
 
-import { Sidebar, SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
+import { Sidebar, SidebarProvider, SidebarTrigger, SidebarInset, useSidebar } from "@/components/ui/sidebar";
 import { LayoutDashboard, History, Trophy, Bot, Star, BookOpen, User } from "lucide-react";
 import { SidebarButton } from "@/components/dashboard/SidebarButton";
 import { usePathname } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { PanelLeft } from "lucide-react";
+
+const navItems = [
+  { href: "/dashboard", icon: <LayoutDashboard />, label: "Overview" },
+  { href: "/dashboard/assessments", icon: <History />, label: "Assessments" },
+  { href: "/dashboard/gamification", icon: <Trophy />, label: "Gamification" },
+  { href: "/dashboard/job-recommender", icon: <Bot />, label: "AI Job Recommender" },
+  { href: "/dashboard/skill-master", icon: <Star />, label: "AI Skill Master" },
+  { href: "/dashboard/learning", icon: <BookOpen />, label: "AI Learning" },
+];
+
+function DashboardHeader() {
+  const { toggleSidebar } = useSidebar();
+  return (
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-lg sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
+       <div className="md:hidden">
+         <Button variant="ghost" size="icon" onClick={toggleSidebar}>
+            <PanelLeft />
+            <span className="sr-only">Toggle Sidebar</span>
+        </Button>
+       </div>
+        {/* Can add breadcrumbs or other header content here */}
+    </header>
+  );
+}
 
 export default function DashboardLayout({
   children,
@@ -13,20 +39,11 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   
-  const navItems = [
-    { href: "/dashboard", icon: <LayoutDashboard />, label: "Overview" },
-    { href: "/dashboard/assessments", icon: <History />, label: "Assessments" },
-    { href: "/dashboard/gamification", icon: <Trophy />, label: "Gamification" },
-    { href: "/dashboard/job-recommender", icon: <Bot />, label: "AI Job Recommender" },
-    { href: "/dashboard/skill-master", icon: <Star />, label: "AI Skill Master" },
-    { href: "/dashboard/learning", icon: <BookOpen />, label: "AI Learning" },
-  ]
-
   return (
     <SidebarProvider>
-        <Sidebar>
+        <Sidebar collapsible="icon" onHover="expand">
             <div className="flex h-full flex-col">
-                <div className="flex items-center justify-between p-2">
+                <div className="flex h-14 items-center justify-between p-2 group-data-[collapsible=icon]:justify-center">
                     <div className="flex-1 group-data-[collapsible=icon]:hidden">
                        {/* Placeholder for header content */}
                     </div>
@@ -46,7 +63,7 @@ export default function DashboardLayout({
                         ))}
                     </div>
                 </div>
-                <div className="p-2">
+                <div className="p-2 mt-auto">
                     <SidebarButton
                         href="/profile"
                         icon={<User />}
@@ -57,9 +74,12 @@ export default function DashboardLayout({
                 </div>
             </div>
         </Sidebar>
-        <SidebarInset>
-            {children}
-        </SidebarInset>
+        <div className="flex flex-col w-full">
+            <DashboardHeader />
+            <SidebarInset>
+                {children}
+            </SidebarInset>
+        </div>
     </SidebarProvider>
   );
 }

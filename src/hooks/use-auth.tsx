@@ -30,53 +30,70 @@ interface AuthContextType {
   signup: (signupData: SignupData) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
+  profileData: User | null;
+  isProfileLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [profileData, setProfileData] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isProfileLoading, setIsProfileLoading] = useState(true);
   const router = useRouter();
   const { auth, firestore } = initializeFirebase();
 
-  const fetchUserData = useCallback(async (firebaseUser: FirebaseUser) => {
-      const userDocRef = doc(firestore, 'users', firebaseUser.uid);
-      const userDoc = await getDoc(userDocRef);
-      if (userDoc.exists()) {
-        setUser({ id: firebaseUser.uid, ...userDoc.data() } as User);
-      } else {
-        // This might happen if Firestore data isn't created yet or there's a lag.
-        console.warn(`User document not found for UID: ${firebaseUser.uid}`);
-        setUser(null);
-      }
+  const fetchUserData = useCallback(async (firebaseUser: FirebaseUser | null) => {
+    if (!firebaseUser) {
+      setUser(null);
+      setProfileData(null);
       setIsLoading(false);
-  },[firestore]);
+      setIsProfileLoading(false);
+      return;
+    }
+    
+    // Set basic user info immediately for faster UI response
+    setUser({
+      id: firebaseUser.uid,
+      email: firebaseUser.email!,
+      name: firebaseUser.displayName || "User",
+      role: 'candidate', // This will be overwritten by profile data
+    });
+    setIsLoading(false);
+
+    // Fetch detailed profile
+    setIsProfileLoading(true);
+    const userDocRef = doc(firestore, 'users', firebaseUser.uid);
+    const userDoc = await getDoc(userDocRef);
+    if (userDoc.exists()) {
+      const fullProfile = { id: firebaseUser.uid, ...userDoc.data() } as User;
+      setProfileData(fullProfile);
+      // Update user context with full profile info
+      setUser(prevUser => ({ ...prevUser, ...fullProfile }));
+    } else {
+      console.warn(`User document not found for UID: ${firebaseUser.uid}`);
+      setProfileData(null); // Or set a default profile shell
+    }
+    setIsProfileLoading(false);
+  }, [firestore]);
 
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        await fetchUserData(firebaseUser);
-      } else {
-        setUser(null);
-        setIsLoading(false);
-      }
-    });
-
+    const unsubscribe = onAuthStateChanged(auth, fetchUserData);
     return () => unsubscribe();
   }, [auth, fetchUserData]);
   
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     const firebaseUser = auth.currentUser;
     if (firebaseUser) {
-        setIsLoading(true);
-        await fetchUserData(firebaseUser);
+      await fetchUserData(firebaseUser);
     }
-  }
+  }, [auth, fetchUserData]);
 
   const login = async (email: string, password: string) => {
     await signInWithEmailAndPassword(auth, email, password);
+    // onAuthStateChanged will handle fetching data
   };
 
   const signup = async (signupData: SignupData) => {
@@ -106,6 +123,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     await signOut(auth);
+    setUser(null);
+    setProfileData(null);
     router.push('/');
   };
 
@@ -115,7 +134,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login,
     signup,
     logout,
-    refreshUser
+    refreshUser,
+    profileData,
+    isProfileLoading
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
