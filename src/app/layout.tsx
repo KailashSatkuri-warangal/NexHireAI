@@ -1,5 +1,4 @@
 
-
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
@@ -7,7 +6,8 @@ import { cn } from '@/lib/utils';
 import { Toaster } from '@/components/ui/toaster';
 import { ThemeProvider } from '@/components/theme-provider';
 import { AuthProvider } from '@/hooks/use-auth';
-import { Header } from '@/components/landing/header';
+import { AppContent } from './AppContent';
+
 
 const fontBody = Inter({
   subsets: ['latin'],
@@ -39,12 +39,9 @@ export default function RootLayout({
             disableTransitionOnChange
         >
           <AuthProvider>
-            <div className="flex flex-col min-h-screen">
-              <Header />
-              <main className="flex-grow">
-                {children}
-              </main>
-            </div>
+            <AppContent>
+              {children}
+            </AppContent>
           </AuthProvider>
           <Toaster />
         </ThemeProvider>

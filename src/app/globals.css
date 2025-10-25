@@ -1,58 +1,89 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 220 20% 97%; /* light gray F0F4F8 */
-    --foreground: 224 71% 4%; /* near black */
-    --card: 220 20% 97%;
-    --card-foreground: 224 71% 4%;
-    --popover: 220 20% 97%;
-    --popover-foreground: 224 71% 4%;
-    --primary: 200 80% 60%; /* soft blue A0D2EB */
-    --primary-foreground: 224 71% 4%;
-    --secondary: 210 17% 93%;
-    --secondary-foreground: 224 71% 4%;
-    --muted: 210 17% 93%;
-    --muted-foreground: 220 9% 46%;
-    --accent: 170 45% 60%; /* accent teal 77DBCD */
-    --accent-rgb: 119, 219, 205;
-    --accent-foreground: 224 71% 4%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 210 10% 89%;
-    --input: 210 10% 89%;
-    --ring: 200 80% 60%;
+    --background: 222.2 84% 4.9%; /* #0c0a09 - Deep Blue/Black */
+    --foreground: 210 40% 98%; /* #f8fafc - Almost White */
+    
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    
+    --primary: 256 84% 68%; /* #9c27b0 - Vivid Purple */
+    --primary-foreground: 210 40% 98%;
+    
+    --secondary: 240 10% 12%; /* #1d1d21 - Darker Gray */
+    --secondary-foreground: 210 40% 98%;
+    
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    
+    --accent: 236 71% 60%; /* #3F51B5 - Deep Blue */
+    --accent-foreground: 210 40% 98%;
+    
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 256 84% 68%; /* Vivid Purple for rings */
+
     --radius: 0.75rem;
-    --chart-1: 200 70% 55%;
-    --chart-2: 200 75% 60%;
-    --chart-3: 200 80% 65%;
-    --chart-4: 200 85% 70%;
-    --chart-5: 200 90% 75%;
+
+    --sidebar: 222.2 84% 4.9%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-border: 217.2 32.6% 17.5%;
+    --sidebar-accent: 240 10% 12%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-ring: 256 84% 68%;
+
+    --chart-1: 256 70% 55%;
+    --chart-2: 256 75% 60%;
+    --chart-3: 256 80% 65%;
+    --chart-4: 256 85% 70%;
+    --chart-5: 256 90% 75%;
   }
 
-  .dark {
-    --background: 220 15% 10%; /* dark slate */
-    --foreground: 210 20% 98%;
-    --card: 220 15% 15%;
-    --card-foreground: 210 20% 98%;
-    --popover: 220 15% 10%;
-    --popover-foreground: 210 20% 98%;
-    --primary: 200 70% 55%; /* brighter blue for dark mode */
-    --primary-foreground: 210 20% 98%;
-    --secondary: 220 15% 18%;
-    --secondary-foreground: 210 20% 98%;
-    --muted: 220 15% 18%;
-    --muted-foreground: 240 5% 64%;
-    --accent: 170 50% 55%; /* accent teal */
-    --accent-rgb: 90, 200, 185;
-    --accent-foreground: 210 20% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 220 15% 25%;
-    --input: 220 15% 25%;
-    --ring: 200 70% 55%;
+  .light {
+    --background: 210 40% 98%; /* #f8fafc - Almost White */
+    --foreground: 222.2 84% 4.9%; /* #0c0a09 - Deep Blue/Black */
+    
+    --card: 210 40% 98%;
+    --card-foreground: 222.2 84% 4.9%;
+    
+    --popover: 210 40% 98%;
+    --popover-foreground: 222.2 84% 4.9%;
+    
+    --primary: 256 84% 60%; /* #9c27b0 - Vivid Purple */
+    --primary-foreground: 210 40% 98%;
+    
+    --secondary: 228 92% 96%; /* #E8EAF6 - Light blue-gray */
+    --secondary-foreground: 222.2 84% 4.9%;
+    
+    --muted: 228 92% 96%;
+    --muted-foreground: 225 10% 40%;
+    
+    --accent: 236 71% 60%; /* #3F51B5 - Deep Blue */
+    --accent-foreground: 210 40% 98%;
+    
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    
+    --border: 228 44% 90%;
+    --input: 228 44% 90%;
+    --ring: 256 84% 60%;
+    
+    --sidebar: 210 40% 98%;
+    --sidebar-foreground: 222.2 84% 4.9%;
+    --sidebar-border: 228 44% 90%;
+    --sidebar-accent: 228 92% 96%;
+    --sidebar-accent-foreground: 222.2 84% 4.9%;
+    --sidebar-ring: 256 84% 60%;
   }
 }
 
