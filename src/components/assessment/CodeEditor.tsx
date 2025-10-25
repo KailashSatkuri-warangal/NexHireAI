@@ -124,6 +124,13 @@ export function CodeEditor({ question, response, onResponseChange }: CodeEditorP
                             <SelectItem value="csharp">C#</SelectItem>
                             <SelectItem value="go">Go</SelectItem>
                             <SelectItem value="rust">Rust</SelectItem>
+                            <SelectItem value="sql">SQL</SelectItem>
+                            <SelectItem value="c">C</SelectItem>
+                            <SelectItem value="cpp">C++</SelectItem>
+                            <SelectItem value="html">HTML</SelectItem>
+                            <SelectItem value="css">CSS</SelectItem>
+                            <SelectItem value="shell">Shell</SelectItem>
+                            <SelectItem value="php">PHP</SelectItem>
                         </SelectContent>
                     </Select>
 
