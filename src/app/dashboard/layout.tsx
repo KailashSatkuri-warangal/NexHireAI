@@ -23,8 +23,10 @@ function DashboardHeader() {
        <div className="md:hidden">
         <SidebarTrigger asChild>
           <Button variant="ghost" size="icon">
+            <>
               <PanelLeft />
               <span className="sr-only">Toggle Sidebar</span>
+            </>
           </Button>
         </SidebarTrigger>
        </div>
