@@ -2,10 +2,11 @@
 'use client';
 
 import { Sidebar, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { LayoutDashboard, History, Trophy, Bot, Star, BookOpen, User } from "lucide-react";
+import { LayoutDashboard, History, Trophy, Bot, Star, BookOpen, User, PanelLeft } from "lucide-react";
 import { SidebarButton } from "@/components/dashboard/SidebarButton";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 
 const navItems = [
   { href: "/dashboard", icon: <LayoutDashboard />, label: "Overview" },
@@ -25,38 +26,38 @@ export default function DashboardLayout({
   
   return (
     <SidebarProvider>
-      <div className="flex h-screen">
-        <Sidebar>
-            <div className="flex h-full flex-col p-2">
-                <div className="h-14 flex items-center justify-end">
-                    <SidebarTrigger />
-                </div>
-                <div className="flex-1 overflow-y-auto">
-                    <div className="flex flex-col gap-2">
-                        {navItems.map((item) => (
-                        <SidebarButton
-                            key={item.href}
-                            href={item.href}
-                            icon={item.icon}
-                            label={item.label}
-                            isActive={pathname === item.href}
-                            tooltip={item.label}
-                        />
-                        ))}
-                    </div>
-                </div>
-                <div className="mt-auto">
-                    <SidebarButton
-                        href="/profile"
-                        icon={<User />}
-                        label="Profile"
-                        isActive={pathname === '/profile'}
-                        tooltip="Profile"
-                    />
-                </div>
-            </div>
-        </Sidebar>
-        <main className="flex-1 overflow-y-auto">{children}</main>
+      <div className="flex flex-col h-screen">
+        <DashboardHeader />
+        <div className="flex flex-row flex-grow overflow-hidden">
+          <Sidebar onHover="expand">
+              <div className="flex h-full flex-col p-2">
+                  <div className="flex-1 overflow-y-auto">
+                      <div className="flex flex-col gap-2">
+                          {navItems.map((item) => (
+                          <SidebarButton
+                              key={item.href}
+                              href={item.href}
+                              icon={item.icon}
+                              label={item.label}
+                              isActive={pathname === item.href}
+                              tooltip={item.label}
+                          />
+                          ))}
+                      </div>
+                  </div>
+                  <div className="mt-auto">
+                      <SidebarButton
+                          href="/profile"
+                          icon={<User />}
+                          label="Profile"
+                          isActive={pathname === '/profile'}
+                          tooltip="Profile"
+                      />
+                  </div>
+              </div>
+          </Sidebar>
+          <main className="flex-1 overflow-y-auto">{children}</main>
+        </div>
       </div>
     </SidebarProvider>
   );
