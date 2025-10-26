@@ -4,10 +4,10 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, collectionGroup, query, orderBy } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { Loader2, Shield, Users, Briefcase, FileText, Search, View } from 'lucide-react';
-import type { User as UserType, Role } from '@/lib/types';
+import type { User as UserType, Role, AssessmentAttempt } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
 type UserWithAssessmentCount = UserType & { assessmentCount?: number };
+type PlatformAssessmentAttempt = AssessmentAttempt & { userName?: string; roleName?: string; };
 
 export default function AdminPage() {
   const { user, isLoading: authLoading } = useAuth();
@@ -26,6 +27,7 @@ export default function AdminPage() {
   const [stats, setStats] = useState({ totalUsers: 0, totalAssessments: 0 });
   const [users, setUsers] = useState<UserWithAssessmentCount[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
+  const [allAssessments, setAllAssessments] = useState<PlatformAssessmentAttempt[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -45,24 +47,35 @@ export default function AdminPage() {
         // Fetch all users
         const usersSnapshot = await getDocs(collection(firestore, 'users'));
         const usersList = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as UserType[];
+        const userMap = new Map(usersList.map(u => [u.id, u.name]));
         
-        // Fetch assessment counts for all users
-        let totalAssessments = 0;
-        const usersWithCounts = await Promise.all(
-            usersList.map(async u => {
-                const assessmentsSnapshot = await getDocs(collection(firestore, `users/${u.id}/assessments`));
-                const count = assessmentsSnapshot.size;
-                totalAssessments += count;
-                return { ...u, assessmentCount: count };
-            })
-        );
+        // Fetch all assessments across all users
+        const assessmentsQuery = query(collectionGroup(firestore, 'assessments'), orderBy('submittedAt', 'desc'));
+        const assessmentsSnapshot = await getDocs(assessmentsQuery);
+        let totalAssessments = assessmentsSnapshot.size;
         
+        const usersWithCounts = usersList.map(u => {
+            const count = assessmentsSnapshot.docs.filter(doc => doc.ref.path.startsWith(`users/${u.id}`)).length;
+            return { ...u, assessmentCount: count };
+        });
         setUsers(usersWithCounts);
-
+        
         // Fetch roles
         const rolesSnapshot = await getDocs(collection(firestore, 'roles'));
         const rolesList = rolesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Role[];
         setRoles(rolesList);
+        const roleMap = new Map(rolesList.map(r => [r.id, r.name]));
+
+        const assessmentsData = assessmentsSnapshot.docs.map(doc => {
+            const data = doc.data() as AssessmentAttempt;
+            return {
+                ...data,
+                id: doc.id,
+                userName: userMap.get(data.userId) || 'Unknown User',
+                roleName: roleMap.get(data.roleId) || 'Unknown Role',
+            };
+        });
+        setAllAssessments(assessmentsData);
         
         // Set overall stats
         setStats({ totalUsers: usersList.length, totalAssessments });
@@ -229,9 +242,38 @@ export default function AdminPage() {
         </TabsContent>
         <TabsContent value="assessments">
              <Card>
-                <CardHeader><CardTitle>Assessment Management</CardTitle></CardHeader>
+                <CardHeader><CardTitle>Platform Assessment History</CardTitle></CardHeader>
                 <CardContent>
-                    <p className="text-muted-foreground text-center p-8">Assessment management tools will be available here soon.</p>
+                     <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Candidate</TableHead>
+                                <TableHead>Assessment Role</TableHead>
+                                <TableHead>Score</TableHead>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {allAssessments.map(attempt => (
+                            <TableRow key={attempt.id}>
+                                <TableCell>{attempt.userName}</TableCell>
+                                <TableCell>{attempt.roleName}</TableCell>
+                                <TableCell>
+                                    <Badge variant={attempt.finalScore! > 70 ? 'default' : 'secondary'}>
+                                        {Math.round(attempt.finalScore!)}%
+                                    </Badge>
+                                </TableCell>
+                                <TableCell>{new Date(attempt.submittedAt!).toLocaleDateString()}</TableCell>
+                                 <TableCell>
+                                    <Button asChild variant="ghost" size="sm">
+                                      <Link href={`/dashboard/assessments/${attempt.id}?userId=${attempt.userId}`}><View className="mr-2 h-4 w-4"/>View Report</Link>
+                                    </Button>
+                                 </TableCell>
+                            </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
                 </CardContent>
             </Card>
         </TabsContent>
@@ -251,5 +293,7 @@ const StatCard = ({ icon, title, value }: { icon: React.ReactNode, title: string
         </CardContent>
     </Card>
 );
+
+    
 
     
