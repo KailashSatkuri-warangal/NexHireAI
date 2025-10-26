@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useRouter } from 'next/navigation';
 import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
+import { Header } from "@/components/landing/header";
 
 const adminNavItems = [
   { href: "/admin", icon: <Home />, label: "Home" },
@@ -24,12 +25,12 @@ export default function AdminLayout({
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading && user?.role !== 'admin') {
+    if (!isLoading && user?.role !== 'admin' && user?.role !== 'recruiter') {
       router.push('/login');
     }
   }, [user, isLoading, router]);
 
-  if (isLoading || user?.role !== 'admin') {
+  if (isLoading || (user?.role !== 'admin' && user?.role !== 'recruiter')) {
     return (
       <div className="flex items-center justify-center h-screen w-full">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -38,37 +39,40 @@ export default function AdminLayout({
   }
   
   return (
-    <SidebarProvider>
-      <div className="flex flex-row flex-grow overflow-hidden">
-        <Sidebar onHover="expand">
-            <div className="flex h-full flex-col p-2">
-                <div className="flex-1 overflow-y-auto">
-                    <div className="flex flex-col gap-2">
-                        {adminNavItems.map((item) => (
-                        <SidebarButton
-                            key={item.href}
-                            href={item.href}
-                            icon={item.icon}
-                            label={item.label}
-                            isActive={pathname === item.href}
-                            tooltip={item.label}
-                        />
-                        ))}
-                    </div>
-                </div>
-                <div className="mt-auto">
-                    <SidebarButton
-                        href="/profile/me"
-                        icon={<User />}
-                        label="Profile"
-                        isActive={pathname === '/profile/me'}
-                        tooltip="Profile"
-                    />
-                </div>
-            </div>
-        </Sidebar>
-        <main className="flex-1 overflow-y-auto">{children}</main>
-      </div>
-    </SidebarProvider>
+    <>
+      <Header />
+      <SidebarProvider>
+        <div className="flex flex-row flex-grow overflow-hidden">
+          <Sidebar onHover="expand">
+              <div className="flex h-full flex-col p-2">
+                  <div className="flex-1 overflow-y-auto">
+                      <div className="flex flex-col gap-2">
+                          {adminNavItems.map((item) => (
+                          <SidebarButton
+                              key={item.href}
+                              href={item.href}
+                              icon={item.icon}
+                              label={item.label}
+                              isActive={pathname === item.href}
+                              tooltip={item.label}
+                          />
+                          ))}
+                      </div>
+                  </div>
+                  <div className="mt-auto">
+                      <SidebarButton
+                          href="/admin/profile"
+                          icon={<User />}
+                          label="Profile"
+                          isActive={pathname === '/admin/profile'}
+                          tooltip="Profile"
+                      />
+                  </div>
+              </div>
+          </Sidebar>
+          <main className="flex-1 overflow-y-auto">{children}</main>
+        </div>
+      </SidebarProvider>
+    </>
   );
 }

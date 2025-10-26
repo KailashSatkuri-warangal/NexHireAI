@@ -82,48 +82,50 @@ export function ProfileCard({ profileData, assessmentHistory, onRunAnalysis, onE
             <ViewProfile profileData={profileData} onResumeUpload={handleResumeUpload} isOwnProfile={isOwnProfile} />
             </div>
         </div>
-        <div className="md:w-1/2 lg:w-3/5 flex flex-col">
-           <Card className="h-full bg-background/30 flex flex-col">
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <History /> Assessment History
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="flex-grow overflow-y-auto space-y-4">
-                    {assessmentHistory.length > 0 ? (
-                        assessmentHistory.map(attempt => (
-                            <motion.div
-                                key={attempt.id}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.3 }}
-                            >
-                                <Card className="bg-card/60 backdrop-blur-sm border-border/20 shadow-lg transition-all duration-300 hover:border-primary/60 hover:shadow-primary/10">
-                                    <CardHeader className="flex flex-row justify-between items-center pb-2">
-                                        <div>
-                                            <CardTitle className="text-lg">{attempt.roleName}</CardTitle>
-                                            <CardDescription>
-                                                Taken on {new Date(attempt.submittedAt!).toLocaleDateString()}
-                                            </CardDescription>
-                                        </div>
-                                         <div className="text-2xl font-bold text-primary">{Math.round(attempt.finalScore!)}%</div>
-                                    </CardHeader>
-                                    <CardFooter className="pt-4">
-                                        <Button className="w-full" onClick={() => router.push(`/dashboard/assessments/${attempt.id}?userId=${profileData.id}`)}>
-                                            View Results
-                                        </Button>
-                                    </CardFooter>
-                                </Card>
-                            </motion.div>
-                        ))
-                    ) : (
-                        <div className="text-center text-muted-foreground py-10">
-                            <p>No assessments taken yet.</p>
-                        </div>
-                    )}
-                </CardContent>
-           </Card>
-        </div>
+        {profileData.role === 'candidate' && (
+            <div className="md:w-1/2 lg:w-3/5 flex flex-col">
+            <Card className="h-full bg-background/30 flex flex-col">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <History /> Assessment History
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex-grow overflow-y-auto space-y-4">
+                        {assessmentHistory.length > 0 ? (
+                            assessmentHistory.map(attempt => (
+                                <motion.div
+                                    key={attempt.id}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.3 }}
+                                >
+                                    <Card className="bg-card/60 backdrop-blur-sm border-border/20 shadow-lg transition-all duration-300 hover:border-primary/60 hover:shadow-primary/10">
+                                        <CardHeader className="flex flex-row justify-between items-center pb-2">
+                                            <div>
+                                                <CardTitle className="text-lg">{attempt.roleName}</CardTitle>
+                                                <CardDescription>
+                                                    Taken on {new Date(attempt.submittedAt!).toLocaleDateString()}
+                                                </CardDescription>
+                                            </div>
+                                            <div className="text-2xl font-bold text-primary">{Math.round(attempt.finalScore!)}%</div>
+                                        </CardHeader>
+                                        <CardFooter className="pt-4">
+                                            <Button className="w-full" onClick={() => router.push(`/dashboard/assessments/${attempt.id}?userId=${profileData.id}`)}>
+                                                View Results
+                                            </Button>
+                                        </CardFooter>
+                                    </Card>
+                                </motion.div>
+                            ))
+                        ) : (
+                            <div className="text-center text-muted-foreground py-10">
+                                <p>No assessments taken yet.</p>
+                            </div>
+                        )}
+                    </CardContent>
+            </Card>
+            </div>
+        )}
       </div>
   );
 }

@@ -7,6 +7,15 @@ import { usePathname } from 'next/navigation';
 export function AppContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isDashboard = pathname.startsWith('/dashboard') || pathname.startsWith('/assessment') || pathname.startsWith('/profile');
+  const isAdminSection = pathname.startsWith('/admin');
+
+  if (isAdminSection) {
+      return (
+          <div className="flex flex-col min-h-screen">
+            {children}
+          </div>
+      )
+  }
 
   return (
       <div className="flex flex-col min-h-screen">
