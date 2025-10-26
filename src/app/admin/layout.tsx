@@ -2,37 +2,39 @@
 'use client';
 
 import { Sidebar, SidebarProvider } from "@/components/ui/sidebar";
-import { LayoutDashboard, History, Trophy, Bot, Star, BookOpen, User, Shield } from "lucide-react";
+import { Home, User } from "lucide-react";
 import { SidebarButton } from "@/components/dashboard/SidebarButton";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
+import { useRouter } from 'next/navigation';
+import { useEffect } from "react";
+import { Loader2 } from "lucide-react";
 
-const candidateNavItems = [
-  { href: "/dashboard", icon: <LayoutDashboard />, label: "Overview" },
-  { href: "/dashboard/assessments", icon: <History />, label: "Assessments" },
-  { href: "/dashboard/gamification", icon: <Trophy />, label: "Gamification" },
-  { href: "/dashboard/job-recommender", icon: <Bot />, label: "AI Job Recommender" },
-  { href: "/dashboard/skill-master", icon: <Star />, label: "AI Skill Master" },
-  { href: "/dashboard/learning", icon: <BookOpen />, label: "AI Learning" },
+const adminNavItems = [
+  { href: "/admin", icon: <Home />, label: "Home" },
 ];
 
-const recruiterNavItems = [
-    { href: "/dashboard/admin", icon: <Shield />, label: "Recruiter Dashboard" },
-]
-
-export default function DashboardLayout({
+export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
+  const router = useRouter();
 
-  const navItems = user?.role === 'candidate' ? candidateNavItems : recruiterNavItems;
-  
-  if (user?.role === 'admin') {
-      // Admin has a separate layout, this should not be rendered.
-      return null;
+  useEffect(() => {
+    if (!isLoading && user?.role !== 'admin') {
+      router.push('/login');
+    }
+  }, [user, isLoading, router]);
+
+  if (isLoading || user?.role !== 'admin') {
+    return (
+      <div className="flex items-center justify-center h-screen w-full">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
   }
   
   return (
@@ -42,13 +44,13 @@ export default function DashboardLayout({
             <div className="flex h-full flex-col p-2">
                 <div className="flex-1 overflow-y-auto">
                     <div className="flex flex-col gap-2">
-                        {navItems.map((item) => (
+                        {adminNavItems.map((item) => (
                         <SidebarButton
                             key={item.href}
                             href={item.href}
                             icon={item.icon}
                             label={item.label}
-                            isActive={pathname.startsWith(item.href)}
+                            isActive={pathname === item.href}
                             tooltip={item.label}
                         />
                         ))}

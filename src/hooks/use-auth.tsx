@@ -82,10 +82,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsProfileLoading(false);
 
     // Role-based redirect
-    if (fullProfile.role === 'recruiter' || fullProfile.role === 'admin') {
-        router.push('/dashboard/admin');
+    if (fullProfile.role === 'admin') {
+      router.push('/admin');
+    } else if (fullProfile.role === 'recruiter') {
+      router.push('/dashboard/admin');
     } else {
-        router.push('/dashboard');
+      router.push('/dashboard');
     }
 
   }, [firestore, router]);
@@ -144,7 +146,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const userDoc = await getDoc(userDocRef);
     if (userDoc.exists()) {
         const role = userDoc.data().role;
-        if(role === 'recruiter' || role === 'admin') {
+        if(role === 'admin') {
+            router.push('/admin');
+        } else if(role === 'recruiter') {
             router.push('/dashboard/admin');
         } else {
             router.push('/dashboard');
