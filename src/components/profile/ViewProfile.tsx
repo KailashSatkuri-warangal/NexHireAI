@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { FileUpload } from '@/components/ui/file-upload';
 import type { User as UserType } from '@/lib/types';
 import { Separator } from '../ui/separator';
-import { format } from 'date-fns';
 
 export const ViewProfile = ({ profileData, onResumeUpload, isOwnProfile }: { profileData: UserType, onResumeUpload: (file: File) => void, isOwnProfile: boolean }) => {
   return profileData.role === 'candidate' 
@@ -17,9 +16,16 @@ export const ViewProfile = ({ profileData, onResumeUpload, isOwnProfile }: { pro
 const formatDate = (dateString?: string) => {
     if (!dateString) return 'Present';
     try {
-        return format(new Date(dateString), 'MMM yyyy');
+        const date = new Date(dateString);
+        // A simple array to get month names
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        // Adding a day to the date to correct for potential timezone issues where it might show the previous day.
+        const correctedDate = new Date(date.valueOf() + date.getTimezoneOffset() * 60 * 1000);
+        const month = monthNames[correctedDate.getMonth()];
+        const year = correctedDate.getFullYear();
+        return `${month} ${year}`;
     } catch {
-        return dateString;
+        return dateString; // Fallback to original string if date is invalid
     }
 }
 
