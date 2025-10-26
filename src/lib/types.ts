@@ -1,4 +1,5 @@
 
+
 export type RoleType = 'candidate' | 'recruiter' | 'admin';
 
 export interface Role {

@@ -5,22 +5,27 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
-import type { AssessmentAttempt, Role, Question } from '@/lib/types';
-import { Loader2, ArrowLeft, Download, BarChart, BrainCircuit } from 'lucide-react';
+import type { AssessmentAttempt, Role, Question, UserResponse } from '@/lib/types';
+import { Loader2, ArrowLeft, Download, BarChart, BrainCircuit, CheckCircle, XCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, Radar, PolarRadiusAxis } from 'recharts';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { CodeEditor } from '@/components/assessment/CodeEditor';
+
 
 export default function AssessmentResultPage() {
-    const { user, isLoading: authLoading } = useAuth();
+    const { user, isLoading: authLoading, profileData } = useAuth();
     const router = useRouter();
     const params = useParams();
     const { firestore } = initializeFirebase();
-    const [attempt, setAttempt] = useState<(AssessmentAttempt & { roleName?: string, questionsWithAnswers?: Question[] }) | null>(null);
+    const [attempt, setAttempt] = useState<(AssessmentAttempt & { roleName?: string, questionsWithAnswers?: (Question & UserResponse)[] }) | null>(null);
     const [isFetching, setIsFetching] = useState(true);
+
+    const userIdToFetch = profileData?.role === 'admin' && params.userId ? params.userId as string : user?.id;
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -29,47 +34,35 @@ export default function AssessmentResultPage() {
     }, [user, authLoading, router]);
 
     useEffect(() => {
-        if (!user || !firestore || !params.id) return;
+        if (!userIdToFetch || !firestore || !params.id) return;
 
         const fetchAttempt = async () => {
             setIsFetching(true);
             try {
                 const attemptId = params.id as string;
-                const attemptDocRef = doc(firestore, 'users', user.id, 'assessments', attemptId);
+                const attemptDocRef = doc(firestore, 'users', userIdToFetch, 'assessments', attemptId);
                 const attemptDoc = await getDoc(attemptDocRef);
 
                 if (!attemptDoc.exists()) {
-                    // Handle not found
                     setAttempt(null);
-                    setIsFetching(false);
                     return;
                 }
 
                 const attemptData = { id: attemptDoc.id, ...attemptDoc.data() } as AssessmentAttempt;
                 
-                // Fetch Role Name
                 const roleDocRef = doc(firestore, 'roles', attemptData.roleId);
                 const roleDoc = await getDoc(roleDocRef);
                 const roleName = roleDoc.exists() ? (roleDoc.data() as Role).name : 'Unknown Role';
 
-                // Fetch all questions for this role to show answers
-                const questions: Question[] = [];
-                const questionsSnapshot = await getDoc(doc(firestore, `roles/${attemptData.roleId}`));
-                 if (questionsSnapshot.exists()) {
-                     // This is a simplified fetch, a real app might need a subcollection query
-                     const roleDataWithQuestions = questionsSnapshot.data() as any;
-                     if(roleDataWithQuestions.questions) {
-                        questions.push(...roleDataWithQuestions.questions);
-                     }
-                 }
-                 
-                // In a real app we'd query the 'questions' subcollection
-                // For now, we assume questions might be on the attempt object or need fetching
-                // This is a placeholder for a more robust fetching strategy
+                let questionsFromDb: Question[] = [];
+                const questionsCollectionRef = collection(firestore, `roles/${attemptData.roleId}/questions`);
+                const questionsSnapshot = await getDocs(questionsCollectionRef);
+                questionsFromDb = questionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Question));
+                
                 const questionsWithAnswers = attemptData.responses.map(res => {
-                    const question = (attemptData.questions || []).find(q => q.id === res.questionId) || { id: res.questionId, questionText: 'Question not found' };
+                    const question = questionsFromDb.find(q => q.id === res.questionId) || { id: res.questionId, questionText: 'Question not found', type: 'short', difficulty: 'Medium', timeLimit: 0, tags: [], skill: 'unknown' };
                     return { ...question, ...res };
-                }) as Question[];
+                });
 
                 setAttempt({ ...attemptData, roleName, questionsWithAnswers });
 
@@ -81,7 +74,7 @@ export default function AssessmentResultPage() {
         };
 
         fetchAttempt();
-    }, [user, firestore, params.id]);
+    }, [userIdToFetch, firestore, params.id]);
 
     const containerVariants = {
         hidden: { opacity: 1 },
@@ -136,7 +129,7 @@ export default function AssessmentResultPage() {
             <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex justify-between items-center mb-8">
                 <div>
                      <Button variant="ghost" onClick={() => router.back()} className="mb-2">
-                        <ArrowLeft className="mr-2 h-4 w-4" /> Back to Assessments
+                        <ArrowLeft className="mr-2 h-4 w-4" /> Back
                     </Button>
                     <h1 className="text-4xl font-bold">{attempt.roleName} - Results</h1>
                 </div>
@@ -183,12 +176,47 @@ export default function AssessmentResultPage() {
                     </Card>
                 </motion.div>
 
-                {/* Placeholder for Question-wise breakdown */}
                  <motion.div variants={itemVariants}>
                     <Card className="bg-card/60 backdrop-blur-sm border-border/20 shadow-lg">
                         <CardHeader><CardTitle>Question Breakdown</CardTitle></CardHeader>
                         <CardContent>
-                            <p className="text-muted-foreground text-center p-8">Question-wise answer review will be available here soon.</p>
+                           <Collapsible>
+                             {(attempt.questionsWithAnswers || []).map((qa, index) => (
+                                <div key={qa.id} className="border-b last:border-b-0">
+                                    <CollapsibleTrigger className="w-full text-left py-4 flex justify-between items-center hover:bg-muted/30 px-2 rounded-md">
+                                        <div className="flex items-center gap-4">
+                                            {qa.isCorrect ? <CheckCircle className="h-5 w-5 text-green-500" /> : <XCircle className="h-5 w-5 text-red-500" />}
+                                            <span className="font-medium">Q{index + 1}: {qa.questionText}</span>
+                                        </div>
+                                        <Badge variant="outline">{qa.skill}</Badge>
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent className="p-4 bg-background/50 rounded-b-md">
+                                        {qa.type === 'mcq' && (
+                                            <div className="space-y-2 text-sm">
+                                                <p><strong>Your Answer:</strong> <span className={qa.isCorrect ? 'text-green-500' : 'text-red-500'}>{qa.answer || "No answer"}</span></p>
+                                                {!qa.isCorrect && <p><strong>Correct Answer:</strong> {qa.correctAnswer}</p>}
+                                            </div>
+                                        )}
+                                        {qa.type === 'short' && (
+                                            <div className="space-y-2 text-sm">
+                                                <p><strong>Your Answer:</strong></p>
+                                                <pre className="p-2 bg-muted rounded-md whitespace-pre-wrap font-sans">{qa.answer || "No answer"}</pre>
+                                                <p><strong>Correct Answer:</strong></p>
+                                                <pre className="p-2 bg-muted rounded-md whitespace-pre-wrap font-sans">{qa.correctAnswer}</pre>
+                                            </div>
+                                        )}
+                                        {qa.type === 'coding' && (
+                                             <CodeEditor 
+                                                question={qa}
+                                                response={qa}
+                                                onResponseChange={() => {}}
+                                                isReadOnly={true}
+                                            />
+                                        )}
+                                    </CollapsibleContent>
+                                </div>
+                            ))}
+                           </Collapsible>
                         </CardContent>
                     </Card>
                  </motion.div>

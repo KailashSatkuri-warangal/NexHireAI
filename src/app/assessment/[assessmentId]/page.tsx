@@ -13,7 +13,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Timer, Loader2, ChevronLeft, ChevronRight, Send } from 'lucide-react';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, collection, addDoc } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import type { AssessmentAttempt } from '@/lib/types';
 import { CodeEditor } from '@/components/assessment/CodeEditor';
@@ -89,10 +89,11 @@ const AssessmentRunner = () => {
         timeTaken: (Date.now() - (startTime || Date.now())) / (assessment.questions.length || 1), // Approximate time per question
       }));
 
+      // A shell object that contains all data needed for scoring
       const attemptShell: AssessmentAttempt = {
-          id: assessment.id,
+          id: assessment.id, // Temporary ID, will be replaced by Firestore's generated ID
           userId: user.id,
-          assessmentId: assessment.id,
+          assessmentId: assessment.id, // Original assessment ID
           roleId: assessment.roleId,
           startedAt: startTime,
           submittedAt: Date.now(),
@@ -104,18 +105,18 @@ const AssessmentRunner = () => {
           // The single flow now returns the complete object including scores and feedback
           const finalAttempt = await scoreAssessment(attemptShell);
           
-          const attemptToSave: AssessmentAttempt = {
-            ...finalAttempt,
-            userId: user.id, // ensure userId is present
-          };
-          delete attemptToSave.questions; // Don't save questions back to the attempt doc
+          // Don't save questions back to the attempt doc
+          const { questions, ...attemptToSave } = finalAttempt;
 
-          const attemptDocRef = doc(firestore, `users/${user.id}/assessments`, assessment.id);
-          await setDoc(attemptDocRef, attemptToSave);
+          const assessmentsCollectionRef = collection(firestore, `users/${user.id}/assessments`);
+          const newAttemptDocRef = await addDoc(assessmentsCollectionRef, {
+              ...attemptToSave,
+              userId: user.id, // ensure userId is present
+          });
           
           toast({ title: "Assessment Submitted!", description: "Your results are now available on your dashboard." });
           reset();
-          router.push('/dashboard');
+          router.push(`/dashboard/assessments/${newAttemptDocRef.id}`);
 
       } catch (error) {
           console.error("Error submitting and scoring assessment:", error);
@@ -138,22 +139,8 @@ const AssessmentRunner = () => {
   const progress = ((currentQuestionIndex + 1) / assessment.questions.length) * 100;
   const currentResponse = responses[currentQuestion.id];
   
-  const isCodingQuestion = currentQuestion.type === 'coding';
-  // A coding question is "answered" if the execution result is available
-  const isCodingAnswered = isCodingQuestion && !!currentResponse?.executionResult;
-  
-  const canGoNext = !isCodingQuestion || isCodingAnswered;
-
   const handleNextWithCheck = () => {
-    if (canGoNext) {
-      nextQuestion();
-    } else if (isCodingQuestion && !isCodingAnswered) {
-      toast({
-        title: "Please run your code",
-        description: "You must run your code against the test cases before proceeding.",
-        variant: "destructive"
-      });
-    }
+    nextQuestion();
   }
 
   const formatTime = (seconds: number) => {
@@ -227,7 +214,7 @@ const AssessmentRunner = () => {
         </div>
 
         <CardFooter className="flex justify-between border-t pt-6 sticky bottom-0 bg-card/80 backdrop-blur-sm">
-            <Button variant="outline" onClick={prevQuestion} disabled={isSubmitting}>
+            <Button variant="outline" onClick={prevQuestion} disabled={isSubmitting || currentQuestionIndex === 0}>
                 <ChevronLeft className="mr-2 h-4 w-4" /> Previous
             </Button>
             
@@ -237,7 +224,7 @@ const AssessmentRunner = () => {
                     {isSubmitting ? 'Submitting...' : 'Submit Assessment'}
                 </Button>
             ) : (
-                <Button onClick={handleNextWithCheck} disabled={isSubmitting} title={!canGoNext ? 'Please run your code first' : ''}>
+                <Button onClick={handleNextWithCheck} disabled={isSubmitting}>
                     Next <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
             )}

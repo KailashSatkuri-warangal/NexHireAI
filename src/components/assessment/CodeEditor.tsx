@@ -21,11 +21,12 @@ interface CodeEditorProps {
     question: Question;
     response: Partial<UserResponse>;
     onResponseChange: (change: Partial<UserResponse>) => void;
+    isReadOnly?: boolean;
 }
 
-export function CodeEditor({ question, response, onResponseChange }: CodeEditorProps) {
+export function CodeEditor({ question, response, onResponseChange, isReadOnly = false }: CodeEditorProps) {
     const [isPending, startTransition] = useTransition();
-    const [activeTab, setActiveTab] = useState('testcases');
+    const [activeTab, setActiveTab] = useState(isReadOnly ? 'output' : 'testcases');
     const { toast } = useToast();
 
     const code = response.code || question.starterCode || '';
@@ -33,6 +34,7 @@ export function CodeEditor({ question, response, onResponseChange }: CodeEditorP
     const executionResult = response.executionResult;
 
     const handleRunCode = () => {
+        if(isReadOnly) return;
         startTransition(async () => {
             toast({ title: 'Running Code...', description: 'Please wait while we evaluate your solution.' });
             try {
@@ -43,7 +45,7 @@ export function CodeEditor({ question, response, onResponseChange }: CodeEditorP
                 });
 
                 if (result) {
-                    onResponseChange({ executionResult: result as CodeExecutionResult[] });
+                    onResponseChange({ executionResult: result as CodeExecutionResult[], code, language });
                     setActiveTab('output');
                     toast({ title: 'Execution Finished!', description: 'Check the output panel for results.' });
                 } else {
@@ -61,9 +63,9 @@ export function CodeEditor({ question, response, onResponseChange }: CodeEditorP
 
     return (
         <div className="flex flex-col h-full">
-            <Tabs defaultValue="testcases" value={activeTab} onValueChange={setActiveTab}>
+            <Tabs defaultValue={isReadOnly ? 'output' : 'testcases'} value={activeTab} onValueChange={setActiveTab}>
                 <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="testcases">Test Cases</TabsTrigger>
+                    <TabsTrigger value="testcases" disabled={isReadOnly}>Test Cases</TabsTrigger>
                     <TabsTrigger value="output">Output</TabsTrigger>
                 </TabsList>
                 <TabsContent value="testcases" className="mt-4">
@@ -112,7 +114,7 @@ export function CodeEditor({ question, response, onResponseChange }: CodeEditorP
 
             <div className="h-[60vh] flex flex-col border-t mt-4">
                 <div className="flex-shrink-0 p-2 border-b flex justify-between items-center bg-background/80 sticky top-[80px] z-10">
-                    <Select value={language} onValueChange={(lang) => onResponseChange({ language: lang })}>
+                    <Select value={language} onValueChange={(lang) => onResponseChange({ language: lang })} disabled={isReadOnly}>
                         <SelectTrigger className="w-[180px]">
                             <SelectValue placeholder="Select Language" />
                         </SelectTrigger>
@@ -134,10 +136,10 @@ export function CodeEditor({ question, response, onResponseChange }: CodeEditorP
                         </SelectContent>
                     </Select>
 
-                    <Button onClick={handleRunCode} disabled={isPending}>
+                    {!isReadOnly && <Button onClick={handleRunCode} disabled={isPending}>
                         {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
                         Run Code
-                    </Button>
+                    </Button>}
                 </div>
                 <div className="flex-grow">
                     <Editor
@@ -150,6 +152,7 @@ export function CodeEditor({ question, response, onResponseChange }: CodeEditorP
                             minimap: { enabled: false },
                             fontSize: 14,
                             wordWrap: 'on',
+                            readOnly: isReadOnly
                         }}
                     />
                 </div>

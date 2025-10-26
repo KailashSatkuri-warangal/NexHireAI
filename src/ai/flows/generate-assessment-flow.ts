@@ -6,7 +6,7 @@
  */
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { getFirestore, doc, getDoc, collection, writeBatch, getDocs, query, limit } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, writeBatch, getDocs, query, limit, collectionGroup } from 'firebase/firestore';
 import { initializeFirebaseForServer } from '@/firebase/server-init';
 import type { Question, Role } from '@/lib/types';
 import type { Assessment } from '@/lib/types';
@@ -48,7 +48,8 @@ const generateAssessmentFlow = ai.defineFlow(
     const questionsCollectionRef = collection(firestore, 'roles', roleId, 'questions');
 
     // 2. Check if enough questions already exist for this role
-    const existingQuestionsQuery = query(questionsCollectionRef, limit(30));
+    // We fetch more than 30 to have some variety
+    const existingQuestionsQuery = query(questionsCollectionRef, limit(50));
     const existingQuestionsSnap = await getDocs(existingQuestionsQuery);
     
     let allQuestions: Question[] = [];
@@ -129,12 +130,15 @@ const generateAssessmentFlow = ai.defineFlow(
     }
 
     // 3. Assemble and return the final assessment object
-    const totalTimeLimit = allQuestions.reduce((acc, q) => acc + q.timeLimit, 0);
+    // Shuffle the questions and take the first 30 for the assessment
+    const selectedQuestions = allQuestions.sort(() => 0.5 - Math.random()).slice(0, 30);
+    const totalTimeLimit = selectedQuestions.reduce((acc, q) => acc + q.timeLimit, 0);
+
     const assessment: Assessment = {
         id: `assessment_${roleId}_${Date.now()}`,
         roleId: roleId,
         roleName: roleName,
-        questions: allQuestions,
+        questions: selectedQuestions,
         totalTimeLimit,
     };
     

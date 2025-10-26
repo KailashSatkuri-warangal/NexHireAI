@@ -37,7 +37,7 @@ export const scoreAssessmentFlow = ai.defineFlow(
   {
     name: 'scoreAssessmentFlow',
     inputSchema: z.custom<AssessmentAttempt>(),
-    outputSchema: z.custom<AssessmentAttempt>(),
+    outputSchema: z.custom<Omit<AssessmentAttempt, 'questions'>>(),
   },
   async (attempt) => {
     const { questions, responses } = attempt;
@@ -65,10 +65,11 @@ export const scoreAssessmentFlow = ai.defineFlow(
         const earned = (userAnswer === "" ? 0 : (userAnswer === correctAnswer ? 1 : 0));
         return { questionId: q.id!, skill: q.skill, earned, max: 1, isCorrect: earned === 1 };
     });
-
+    
+    // For coding questions, we rely on the executionResult from the client
     const codingScores = codingQs.map(q => {
-        const passed = Number(q.testCasesPassed ?? 0);
-        const total = Number(q.totalTestCases ?? (q.testCases?.length || 0)) || 0;
+        const passed = q.executionResult?.filter(r => r.status === 'Passed').length ?? 0;
+        const total = q.executionResult?.length ?? (q.testCases?.length || 0);
         const earned = total > 0 ? Math.max(0, Math.min(1, passed / total)) : 0;
         return { questionId: q.id!, skill: q.skill, earned, max: 1, isCorrect: earned === 1, passed, total };
     });
@@ -139,6 +140,7 @@ SHORT_ANSWERS: ${JSON.stringify(shortPayload)}
     // --- 4. Aggregate all scores by skill ---
     const skillMap = new Map<string, { earnedSum: number; maxSum: number }>();
     const addScore = (skill: string, earned: number, max: number) => {
+        if (!skill) return; // Guard against undefined skill
         const s = skillMap.get(skill) ?? { earnedSum: 0, maxSum: 0 };
         s.earnedSum += earned;
         s.maxSum += max;
@@ -156,7 +158,7 @@ SHORT_ANSWERS: ${JSON.stringify(shortPayload)}
 
     // --- 6. Build summary strings for final feedback prompt (Prompt B) ---
     const mcqSummary = `Total MCQs: ${mcqs.length}, Correct: ${mcqScores.filter(s => s.earned === 1).length}`;
-    const codingAvgPassRate = codingScores.length > 0
+    const codingAvgPassRate = codingQs.length > 0
         ? Math.round((codingScores.reduce((sum, q) => sum + (q.passed / (q.total || 1)), 0) / codingScores.length) * 100)
         : 0;
     const codingSummary = `Total coding questions: ${codingScores.length}, avg_pass_rate: ${codingAvgPassRate}%`;
@@ -211,14 +213,23 @@ Rules:
         correctnessMap.set(s.questionId, s.isCorrect);
     });
     
-    // Update original responses with `isCorrect` flag
-    const evaluatedResponses = responses.map(resp => ({
-        ...resp,
-        isCorrect: correctnessMap.get(resp.questionId) ?? false,
-    }));
+    // Update original responses with `isCorrect` flag and coding stats
+    const evaluatedResponses = responses.map(resp => {
+        const codingScore = codingQs.find(cs => cs.questionId === resp.questionId);
+        return {
+            ...resp,
+            isCorrect: correctnessMap.get(resp.questionId) ?? false,
+            ...(codingScore && {
+                testCasesPassed: codingScore.passed,
+                totalTestCases: codingScore.total,
+            })
+        };
+    });
+
+    const { questions: _, ...restOfAttempt } = attempt;
 
     return {
-      ...attempt,
+      ...restOfAttempt,
       responses: evaluatedResponses,
       finalScore,
       skillScores: finalSkillScores,
@@ -227,7 +238,7 @@ Rules:
   }
 );
 
-export async function scoreAssessment(attempt: AssessmentAttempt): Promise<AssessmentAttempt> {
+export async function scoreAssessment(attempt: AssessmentAttempt): Promise<Omit<AssessmentAttempt, 'questions'>> {
     const scoredData = await scoreAssessmentFlow(attempt);
     return scoredData;
 }
