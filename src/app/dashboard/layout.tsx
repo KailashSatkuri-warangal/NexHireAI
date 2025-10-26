@@ -17,7 +17,7 @@ const candidateNavItems = [
 ];
 
 const recruiterNavItems = [
-    { href: "/dashboard/admin", icon: <Shield />, label: "Recruiter Dashboard" },
+    { href: "/admin", icon: <Shield />, label: "Admin Dashboard" },
 ]
 
 export default function DashboardLayout({

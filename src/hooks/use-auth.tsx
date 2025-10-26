@@ -47,13 +47,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const handleRedirect = (role: RoleType) => {
      if (role === 'admin' || role === 'recruiter') {
-        if (!pathname.startsWith('/admin')) {
-             router.push('/admin');
-        }
+        router.push('/admin');
     } else if (role === 'candidate') {
-        if (!pathname.startsWith('/dashboard') && !pathname.startsWith('/assessment') && !pathname.startsWith('/profile') && !pathname.startsWith('/skill-assessment')) {
-             router.push('/dashboard');
-        }
+        router.push('/dashboard');
     }
   }
 
