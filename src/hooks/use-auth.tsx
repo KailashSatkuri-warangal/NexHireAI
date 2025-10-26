@@ -54,46 +54,104 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     
     // Set basic user info immediately for faster UI response
-    setUser({
+    const basicUser: User = {
       id: firebaseUser.uid,
       email: firebaseUser.email!,
       name: firebaseUser.displayName || "User",
       role: 'candidate', // This will be overwritten by profile data
-    });
+    };
+    setUser(basicUser);
     setIsLoading(false);
 
     // Fetch detailed profile
     setIsProfileLoading(true);
     const userDocRef = doc(firestore, 'users', firebaseUser.uid);
     const userDoc = await getDoc(userDocRef);
+    let fullProfile: User;
     if (userDoc.exists()) {
-      const fullProfile = { id: firebaseUser.uid, ...userDoc.data() } as User;
-      setProfileData(fullProfile);
-      // Update user context with full profile info
-      setUser(prevUser => ({ ...prevUser, ...fullProfile }));
+      fullProfile = { id: firebaseUser.uid, ...userDoc.data() } as User;
     } else {
-      console.warn(`User document not found for UID: ${firebaseUser.uid}`);
-      setProfileData(null); // Or set a default profile shell
+        // This might happen for a brand new signup that hasn't had a doc created yet
+        // Let's create a default one based on the signup info
+        console.warn(`User document not found for UID: ${firebaseUser.uid}. A default will be used.`);
+        fullProfile = basicUser;
     }
+    
+    setProfileData(fullProfile);
+    setUser(fullProfile); // Update user context with full profile info
     setIsProfileLoading(false);
-  }, [firestore]);
+
+    // Role-based redirect
+    if (fullProfile.role === 'recruiter' || fullProfile.role === 'admin') {
+        router.push('/dashboard/admin');
+    } else {
+        router.push('/dashboard');
+    }
+
+  }, [firestore, router]);
 
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, fetchUserData);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+        if (!firebaseUser) {
+          setUser(null);
+          setProfileData(null);
+          setIsLoading(false);
+          setIsProfileLoading(false);
+        } else {
+            // Fetch user data, but don't redirect here.
+            // Redirection should only happen after a manual login action.
+            const userDocRef = doc(firestore, 'users', firebaseUser.uid);
+            const userDoc = await getDoc(userDocRef);
+            if (userDoc.exists()) {
+                const fullProfile = { id: firebaseUser.uid, ...userDoc.data() } as User;
+                setProfileData(fullProfile);
+                setUser(fullProfile);
+            } else {
+                setUser({
+                  id: firebaseUser.uid,
+                  email: firebaseUser.email!,
+                  name: firebaseUser.displayName || "User",
+                  role: 'candidate',
+                });
+                setProfileData(null);
+            }
+            setIsLoading(false);
+            setIsProfileLoading(false);
+        }
+    });
     return () => unsubscribe();
-  }, [auth, fetchUserData]);
+  }, [auth, firestore]);
   
   const refreshUser = useCallback(async () => {
     const firebaseUser = auth.currentUser;
     if (firebaseUser) {
-      await fetchUserData(firebaseUser);
+        const userDocRef = doc(firestore, 'users', firebaseUser.uid);
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists()) {
+            const fullProfile = { id: firebaseUser.uid, ...userDoc.data() } as User;
+            setProfileData(fullProfile);
+            setUser(fullProfile);
+        }
     }
-  }, [auth, fetchUserData]);
+  }, [auth, firestore]);
 
   const login = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
-    // onAuthStateChanged will handle fetching data
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    // onAuthStateChanged will fetch data, but we can trigger a redirect manually here
+    // for a better user experience after login.
+    const userDocRef = doc(firestore, 'users', userCredential.user.uid);
+    const userDoc = await getDoc(userDocRef);
+    if (userDoc.exists()) {
+        const role = userDoc.data().role;
+        if(role === 'recruiter' || role === 'admin') {
+            router.push('/dashboard/admin');
+        } else {
+            router.push('/dashboard');
+        }
+    } else {
+        router.push('/dashboard'); // Default fallback
+    }
   };
 
   const signup = async (signupData: SignupData) => {

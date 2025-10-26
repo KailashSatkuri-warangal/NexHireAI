@@ -9,9 +9,9 @@ import { CheckCircle } from 'lucide-react';
 export function About() {
   const aboutImage = PlaceHolderImages.find(p => p.id === 'about-visual');
   const stats = [
-    { value: '30+', label: 'Skill Paths' },
-    { value: '5K+', label: 'Assessments Taken' },
-    { value: '95%', label: 'Completion Rate' },
+    { value: '75%', label: 'Reduction in time-to-hire' },
+    { value: '30+', label: 'Pre-built Role Assessments' },
+    { value: '95%', label: 'Candidate Completion Rate' },
   ];
 
   return (
@@ -42,10 +42,10 @@ export function About() {
                 transition={{ duration: 0.8, ease: "easeOut" }}
             >
               <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">
-                What is NexHireAI?
+                Hire Smarter, Not Harder
               </h2>
               <p className="mt-4 text-muted-foreground md:text-xl">
-                NexHireAI is a revolutionary platform that leverages cutting-edge AI to create dynamic, adaptive skill assessments. We move beyond static questionnaires to simulate real-world challenges, providing deep insights into a candidate's true potential and job readiness.
+                Stop wasting time on unqualified candidates. NexHireAI provides a powerful suite of AI-driven tools to identify, assess, and validate top-tier talent with unparalleled accuracy, ensuring you only interview the best.
               </p>
               <div className="mt-8 grid grid-cols-3 gap-4">
                   {stats.map(stat => (

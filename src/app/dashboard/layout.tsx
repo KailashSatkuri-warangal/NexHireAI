@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Sidebar, SidebarProvider } from "@/components/ui/sidebar";
@@ -6,7 +7,7 @@ import { SidebarButton } from "@/components/dashboard/SidebarButton";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
 
-const navItems = [
+const candidateNavItems = [
   { href: "/dashboard", icon: <LayoutDashboard />, label: "Overview" },
   { href: "/dashboard/assessments", icon: <History />, label: "Assessments" },
   { href: "/dashboard/gamification", icon: <Trophy />, label: "Gamification" },
@@ -15,6 +16,10 @@ const navItems = [
   { href: "/dashboard/learning", icon: <BookOpen />, label: "AI Learning" },
 ];
 
+const adminNavItems = [
+  { href: "/dashboard/admin", icon: <Shield />, label: "Admin Dashboard" },
+]
+
 export default function DashboardLayout({
   children,
 }: {
@@ -22,6 +27,8 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const { user } = useAuth();
+
+  const navItems = user?.role === 'candidate' ? candidateNavItems : adminNavItems;
   
   return (
     <SidebarProvider>
@@ -36,19 +43,10 @@ export default function DashboardLayout({
                             href={item.href}
                             icon={item.icon}
                             label={item.label}
-                            isActive={pathname === item.href}
+                            isActive={pathname.startsWith(item.href)}
                             tooltip={item.label}
                         />
                         ))}
-                         {user?.role === 'admin' && (
-                           <SidebarButton
-                                href="/dashboard/admin"
-                                icon={<Shield />}
-                                label="Admin"
-                                isActive={pathname.startsWith('/dashboard/admin')}
-                                tooltip="Admin Panel"
-                            />
-                        )}
                     </div>
                 </div>
                 <div className="mt-auto">

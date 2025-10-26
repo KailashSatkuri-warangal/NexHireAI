@@ -11,25 +11,25 @@ const featuresData = [
   {
     icon: <Zap className="h-8 w-8 text-primary" />,
     title: 'Dynamic Assessments',
-    description: 'Adaptive tests that mirror real-world scenarios, challenging candidates appropriately.',
+    description: 'Create custom, role-specific tests in minutes. Our AI generates relevant questions for over 30 roles.',
     imageId: 'feature1',
   },
   {
     icon: <BrainCircuit className="h-8 w-8 text-primary" />,
-    title: 'AI-Powered Analytics',
-    description: 'Get deep insights into skill gaps, performance trends, and learning paths.',
+    title: 'AI-Powered Scoring',
+    description: 'Instantly get deep insights into candidate skill gaps, code quality, and problem-solving abilities.',
     imageId: 'feature4',
   },
   {
     icon: <BarChart className="h-8 w-8 text-primary" />,
-    title: 'Interactive Dashboard',
-    description: 'Visualize your progress with gamified metrics, charts, and skill-level tracking.',
+    title: 'Candidate Analytics',
+    description: 'Track candidate performance, benchmark against top performers, and build a high-quality talent pipeline.',
     imageId: 'feature3',
   },
   {
     icon: <Briefcase className="h-8 w-8 text-primary" />,
-    title: 'Recruitment Simulations',
-    description: 'Experience assessments designed to simulate actual company recruitment challenges.',
+    title: 'Realistic Code Editor',
+    description: 'Evaluate coding skills in a real-world environment with an integrated Monaco editor and AI-run test cases.',
     imageId: 'feature2',
   },
 ];
@@ -44,9 +44,9 @@ export function Features() {
     <section id="features" className="py-16 sm:py-24 bg-background/50">
       <div className="container mx-auto px-4 md:px-6">
         <div className="text-center">
-          <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">Why Choose NexHireAI?</h2>
+          <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">A Better Way to Hire Technical Talent</h2>
           <p className="mt-4 max-w-2xl mx-auto text-muted-foreground md:text-xl">
-            Our platform is packed with powerful features to help you master new skills and accelerate your career.
+            Our platform provides the tools you need to quickly and accurately assess the skills that matter most.
           </p>
         </div>
         <motion.div 

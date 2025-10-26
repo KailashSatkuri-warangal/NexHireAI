@@ -31,10 +31,10 @@ export function Cta() {
                  transition={{ duration: 0.6 }}
             >
                 <h2 className="text-3xl font-bold tracking-tighter text-primary-foreground sm:text-4xl md:text-5xl">
-                Ready to Build Your Future?
+                Ready to Find Your Next Great Hire?
                 </h2>
                 <p className="mt-4 max-w-xl mx-auto text-primary-foreground/80 md:text-lg">
-                Sign up now to access AI-powered assessments and unlock your true potential.
+                Sign up today and start building a world-class team with AI-driven insights.
                 </p>
                 <motion.div 
                 className="mt-8 inline-block"
@@ -42,7 +42,7 @@ export function Cta() {
                 whileTap={{ scale: 0.95 }}
                 >
                 <Button asChild size="lg" variant="secondary" className="bg-primary-foreground text-primary hover:bg-primary-foreground/90 h-12 px-8 text-base">
-                    <Link href="/login">Get Started Free</Link>
+                    <Link href="/login">Sign Up for Free</Link>
                 </Button>
                 </motion.div>
             </motion.div>
