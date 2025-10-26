@@ -1,7 +1,7 @@
 
 'use client';
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
@@ -21,11 +21,12 @@ export default function AssessmentResultPage() {
     const { user, isLoading: authLoading, profileData } = useAuth();
     const router = useRouter();
     const params = useParams();
+    const searchParams = useSearchParams();
     const { firestore } = initializeFirebase();
     const [attempt, setAttempt] = useState<(AssessmentAttempt & { roleName?: string, questionsWithAnswers?: (Question & UserResponse)[] }) | null>(null);
     const [isFetching, setIsFetching] = useState(true);
 
-    const userIdToFetch = profileData?.role === 'admin' && params.userId ? params.userId as string : user?.id;
+    const userIdFromQuery = searchParams.get('userId');
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -38,7 +39,7 @@ export default function AssessmentResultPage() {
 
         const fetchAttempt = async () => {
             setIsFetching(true);
-            const pathUserId = params.userId as string || user.id;
+            const pathUserId = (profileData?.role === 'admin' && userIdFromQuery) ? userIdFromQuery : user.id;
 
             try {
                 const attemptId = params.id as string;
@@ -76,7 +77,7 @@ export default function AssessmentResultPage() {
         };
 
         fetchAttempt();
-    }, [user, firestore, params.id, params.userId]);
+    }, [user, firestore, params.id, userIdFromQuery, profileData]);
 
     const containerVariants = {
         hidden: { opacity: 1 },
@@ -105,7 +106,7 @@ export default function AssessmentResultPage() {
                         <CardDescription>We couldn't find the assessment result you're looking for.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <Button onClick={() => router.push('/dashboard/assessments')}>Back to Assessments</Button>
+                        <Button onClick={() => router.back()}>Back</Button>
                     </CardContent>
                 </Card>
             </div>
@@ -233,5 +234,7 @@ const InfoCard = ({ title, value }: { title: string, value: string }) => (
         <p className="text-3xl font-bold mt-2">{value}</p>
     </Card>
 )
+
+    
 
     
