@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Shield, Building, Users, NotebookPen, BarChart, TrendingUp, UserCheck, Activity } from 'lucide-react';
+import { Shield, Building, Users, NotebookPen, BarChart, TrendingUp, UserCheck, Activity, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { motion } from 'framer-motion';
