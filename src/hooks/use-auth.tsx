@@ -126,7 +126,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       xp: 0,
       badges: [],
       ...(role === 'candidate' && { candidateSpecific: { skills: [], locationPreferences: [] } }),
-      ...(role === 'recruiter' && { recruiterSpecific: { companyName: '', hiringFocus: [] } }),
+      ...(role === 'recruiter' && { recruiterSpecific: { 
+          companyName: 'Example Corp',
+          designation: 'Talent Acquisition Specialist',
+          companyWebsite: 'https://example.com',
+          hiringFocus: ['react', 'nodejs'] 
+      } }),
     };
 
     const userDocRef = doc(firestore, 'users', firebaseUser.uid);

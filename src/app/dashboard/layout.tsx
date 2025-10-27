@@ -2,10 +2,13 @@
 'use client';
 
 import { Sidebar, SidebarProvider } from "@/components/ui/sidebar";
-import { LayoutDashboard, History, Trophy, Bot, Star, BookOpen, User, Shield } from "lucide-react";
+import { LayoutDashboard, History, Trophy, Bot, Star, BookOpen, User } from "lucide-react";
 import { SidebarButton } from "@/components/dashboard/SidebarButton";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { Loader2 } from "lucide-react";
 
 const candidateNavItems = [
   { href: "/dashboard", icon: <LayoutDashboard />, label: "Overview" },
@@ -22,12 +25,28 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
+  const router = useRouter();
 
-  // This layout is now only for candidates. Admins have their own layout.
-  // We can return null or a loading state if a non-candidate tries to access it.
-  if (user?.role !== 'candidate') {
-      return null;
+  // This layout is ONLY for candidates.
+  // Redirect if the user is not a candidate or is not logged in.
+  useEffect(() => {
+     if (!isLoading) {
+        if (!user) {
+            router.push('/login');
+        } else if (user.role !== 'candidate') {
+            router.push('/admin');
+        }
+     }
+  }, [user, isLoading, router]);
+
+  // Show a loading state while we verify the user role
+  if (isLoading || !user || user.role !== 'candidate') {
+      return (
+        <div className="flex items-center justify-center h-screen w-full">
+            <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      )
   }
   
   return (
@@ -54,7 +73,7 @@ export default function DashboardLayout({
                         href="/profile/me"
                         icon={<User />}
                         label="Profile"
-                        isActive={pathname === '/profile/me'}
+                        isActive={pathname.startsWith('/profile')}
                         tooltip="Profile"
                     />
                 </div>
