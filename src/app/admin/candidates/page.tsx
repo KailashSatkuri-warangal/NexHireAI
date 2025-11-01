@@ -122,7 +122,7 @@ export default function CandidatesPage() {
                                                 </div>
                                             </TableCell>
                                             <TableCell className="text-right">
-                                                <Button variant="ghost" size="sm" onClick={() => router.push(`/profile/${candidate.id}`)}>
+                                                <Button variant="ghost" size="sm" onClick={() => router.push(`/admin/candidates/${candidate.id}`)}>
                                                     <Eye className="mr-2 h-4 w-4" />
                                                     View Profile
                                                 </Button>
