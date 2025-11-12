@@ -3,7 +3,7 @@
  * @fileoverview Firestore Security Rules for NexHireAI platform.
  *
  * Core Philosophy:
- * This ruleset enforces a strict user-ownership model for all data. Each user has complete control over their own data tree.
+ * This ruleset enforces a strict user-ownership model for most data. Each user has complete control over their own data tree.
  * Recruiters and Admins have read/write access to platform-level data like roles, assessments, and the question bank.
  *
  * Data Structure:
@@ -14,12 +14,14 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Helper functions to check user roles and ownership.
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
 
     function isRecruiterOrAdmin() {
-      // Check for custom claim `role` on the auth token
+      // Check for a custom claim `role` on the user's auth token.
+      // This is more secure than checking a field in their user document.
       return request.auth.token.role == 'recruiter' || request.auth.token.role == 'admin';
     }
 
@@ -35,56 +37,58 @@ service cloud.firestore {
       allow list: if isRecruiterOrAdmin(); 
       allow create: if isOwner(userId);
       allow update: if isOwner(userId);
+      // Deletion is a sensitive operation, restrict it to the user for now.
       allow delete: if isOwner(userId);
     }
 
     /**
-     * @description Secure user-specific assessment attempts.
+     * @description Secure user-specific assessment attempts. Only the user or an admin can see their results.
      */
     match /users/{userId}/assessments/{assessmentId} {
-      allow read, write: if isOwner(userId);
+      allow read: if isOwner(userId) || isRecruiterOrAdmin();
+      allow write: if isOwner(userId); // Only the user can create their own attempts.
       allow list: if isOwner(userId) || isRecruiterOrAdmin();
     }
     
     /**
-     * @description Public roles, readable by all authenticated users, writable by admins.
+     * @description Public roles, readable by all authenticated users, writable only by admins/recruiters.
+     * This is necessary so candidates can see the list of available assessments.
      */
     match /roles/{roleId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
+      allow get, list: if isSignedIn();
       allow write: if isRecruiterOrAdmin();
     }
     
     /**
-     * @description Legacy questions collection, readable by authenticated users.
+     * @description Legacy questions collection, kept for compatibility but secured.
+     * It's better to migrate to the central questionBank.
      */
     match /roles/{roleId}/questions/{questionId} {
-       allow get: if isSignedIn();
-       allow list: if isSignedIn();
+       allow get, list: if isSignedIn();
        allow write: if isRecruiterOrAdmin();
     }
 
     /**
      * @description Centralized question bank, only manageable by admins/recruiters.
+     * Candidates should not be able to read all questions directly.
      */
     match /questionBank/{questionId} {
-        allow read: if isRecruiterOrAdmin();
-        allow write: if isRecruiterOrAdmin();
+        allow read, write: if isRecruiterOrAdmin();
     }
 
     /**
      * @description Assessment templates, only manageable by admins/recruiters.
      */
     match /assessments/{assessmentId} {
-        allow read: if isRecruiterOrAdmin();
-        allow write: if isRecruiterOrAdmin();
+        allow read, write: if isRecruiterOrAdmin();
     }
 
     /**
-     * @description All other nested collections under a user are private.
+     * @description A secure fallback. Disallow any other reads/writes by default.
+     * This ensures any new collections are secure until rules are explicitly defined.
      */
-    match /users/{userId}/{document=**} {
-      allow read, write: if isOwner(userId);
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
