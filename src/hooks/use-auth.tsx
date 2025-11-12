@@ -39,8 +39,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profileData, setProfileData] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isProfileLoading, setIsProfileLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Tracks initial Firebase auth check
+  const [isProfileLoading, setIsProfileLoading] = useState(false); // Tracks Firestore profile fetch
   const router = useRouter();
   const { auth, firestore } = initializeFirebase();
 
@@ -54,42 +54,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUserData = useCallback(async (firebaseUser: FirebaseUser) => {
     setIsProfileLoading(true);
-    const userDocRef = doc(firestore, 'users', firebaseUser.uid);
-    const userDoc = await getDoc(userDocRef);
-    let fullProfile: User;
+    try {
+        const userDocRef = doc(firestore, 'users', firebaseUser.uid);
+        const userDoc = await getDoc(userDocRef);
+        let fullProfile: User;
 
-    if (userDoc.exists()) {
-      fullProfile = { id: firebaseUser.uid, ...userDoc.data() } as User;
-    } else {
-      console.warn(`User document not found for UID: ${firebaseUser.uid}. Creating a default.`);
-      fullProfile = {
-        id: firebaseUser.uid,
-        email: firebaseUser.email!,
-        name: firebaseUser.displayName || "New User",
-        role: 'candidate', // Default role
-      };
-      await setDoc(userDocRef, fullProfile, { merge: true });
+        if (userDoc.exists()) {
+            fullProfile = { id: firebaseUser.uid, ...userDoc.data() } as User;
+        } else {
+            console.warn(`User document not found for UID: ${firebaseUser.uid}. Creating a default.`);
+            fullProfile = {
+                id: firebaseUser.uid,
+                email: firebaseUser.email!,
+                name: firebaseUser.displayName || "New User",
+                role: 'candidate', // Default role
+            };
+            await setDoc(userDocRef, fullProfile, { merge: true });
+        }
+        
+        setUser(fullProfile);
+        setProfileData(fullProfile);
+        return fullProfile;
+    } catch (error) {
+        console.error("Error fetching user data:", error);
+        // If profile fetch fails, still set a minimal user object to avoid being logged out
+        const minimalUser = {
+            id: firebaseUser.uid,
+            email: firebaseUser.email!,
+            name: firebaseUser.displayName || "Error User",
+            role: 'candidate' as RoleType,
+        };
+        setUser(minimalUser);
+        setProfileData(minimalUser);
+        return minimalUser;
+    } finally {
+        setIsProfileLoading(false);
     }
-    
-    setUser(fullProfile);
-    setProfileData(fullProfile);
-    setIsProfileLoading(false);
-
-    return fullProfile;
   }, [firestore]);
 
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-        setIsLoading(true);
         if (firebaseUser) {
+            // User is signed in. Auth is loaded, now fetch profile.
+            setIsLoading(false); // Auth is done!
             await fetchUserData(firebaseUser);
         } else {
+            // User is signed out.
             setUser(null);
             setProfileData(null);
+            setIsLoading(false); // Auth is done!
             setIsProfileLoading(false);
         }
-        setIsLoading(false);
     });
     return () => unsubscribe();
   }, [auth, fetchUserData]);
@@ -99,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (firebaseUser) {
         await fetchUserData(firebaseUser);
     }
-  }, [auth, fetchUserData]);
+  }, [auth.currentUser, fetchUserData]);
 
   const login = async (email: string, password: string) => {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
