@@ -25,8 +25,8 @@ const GeneratedQuestionSchema = z.object({
   starterCode: z.string().optional(),
 });
 
-// Zod schema for the entire batch of 30 questions
-const ThirtyQuestionsSchema = z.array(GeneratedQuestionSchema).length(30);
+// Zod schema for the entire batch of questions. We no longer enforce a strict length of 30.
+const QuestionsSchema = z.array(GeneratedQuestionSchema);
 
 
 const generateAssessmentFlow = ai.defineFlow(
@@ -84,12 +84,12 @@ const generateAssessmentFlow = ai.defineFlow(
           - **Mandatory Fields:** Ensure the 'skill' field for each question correctly identifies which sub-skill it targets. All fields in the schema must be present for each question, even if optional (e.g., use 'options: []' for non-mcq).
 
           Adhere strictly to the JSON output schema, which is an array of exactly 30 question objects. Your response MUST be a valid JSON array.`,
-          output: { schema: ThirtyQuestionsSchema },
+          output: { schema: QuestionsSchema }, // Use the less strict schema
           config: { temperature: 0.6 }
       });
       
-      if (!generatedQuestions) {
-        throw new Error(`AI failed to generate the full set of 30 questions for role ${roleName}.`);
+      if (!generatedQuestions || generatedQuestions.length === 0) {
+        throw new Error(`AI failed to generate questions for role ${roleName}.`);
       }
 
       const batch = writeBatch(firestore);
@@ -104,11 +104,11 @@ const generateAssessmentFlow = ai.defineFlow(
       }
       
       await batch.commit();
-      console.log(`Successfully generated and saved 30 questions for role: ${roleName}`);
+      console.log(`Successfully generated and saved ${generatedQuestions.length} questions for role: ${roleName}`);
     }
 
     // 3. Assemble and return the final assessment object
-    // The questions are already a good mix, so we can just take the first 30
+    // Take up to the first 30 questions, in case the AI provides more or fewer.
     const selectedQuestions = allQuestions.slice(0, 30);
     const totalTimeLimit = selectedQuestions.reduce((acc, q) => acc + (q.timeLimit || 60), 0); // Default to 60s if not set
 
