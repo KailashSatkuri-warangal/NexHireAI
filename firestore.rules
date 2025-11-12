@@ -23,6 +23,10 @@ service cloud.firestore {
       return request.auth.token.role == 'recruiter' || request.auth.token.role == 'admin';
     }
 
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
     /**
      * @description Secure user profiles. Users can manage their own profile. Recruiters/Admins can view all profiles.
      */
@@ -46,8 +50,8 @@ service cloud.firestore {
      * @description Public roles, readable by all authenticated users, writable by admins.
      */
     match /roles/{roleId} {
-      allow get;
-      allow list;
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
       allow write: if isRecruiterOrAdmin();
     }
     
@@ -55,8 +59,8 @@ service cloud.firestore {
      * @description Legacy questions collection, readable by authenticated users.
      */
     match /roles/{roleId}/questions/{questionId} {
-       allow get;
-       allow list;
+       allow get: if isSignedIn();
+       allow list: if isSignedIn();
        allow write: if isRecruiterOrAdmin();
     }
 
