@@ -33,8 +33,8 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isOwner(userId) || isRecruiterOrAdmin();
       allow list: if isRecruiterOrAdmin(); 
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isOwner(userId) && request.resource.data.id == resource.data.id;
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
       allow delete: if isOwner(userId);
     }
 
@@ -68,14 +68,16 @@ service cloud.firestore {
      * @description Centralized question bank, only manageable by admins/recruiters.
      */
     match /questionBank/{questionId} {
-        allow read, write: if isRecruiterOrAdmin();
+        allow read: if isRecruiterOrAdmin();
+        allow write: if isRecruiterOrAdmin();
     }
 
     /**
      * @description Assessment templates, only manageable by admins/recruiters.
      */
     match /assessments/{assessmentId} {
-        allow read, write: if isRecruiterOrAdmin();
+        allow read: if isRecruiterOrAdmin();
+        allow write: if isRecruiterOrAdmin();
     }
 
     /**
