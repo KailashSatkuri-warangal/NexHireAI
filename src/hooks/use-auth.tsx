@@ -73,7 +73,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     setUser(fullProfile);
     setProfileData(fullProfile);
-    setIsLoading(false);
     setIsProfileLoading(false);
 
     return fullProfile;
@@ -82,15 +81,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-        if (!firebaseUser) {
-          setUser(null);
-          setProfileData(null);
-          setIsLoading(false);
-          setIsProfileLoading(false);
-        } else {
-            setIsLoading(true);
+        setIsLoading(true);
+        if (firebaseUser) {
             await fetchUserData(firebaseUser);
+        } else {
+            setUser(null);
+            setProfileData(null);
+            setIsProfileLoading(false);
         }
+        setIsLoading(false);
     });
     return () => unsubscribe();
   }, [auth, fetchUserData]);
