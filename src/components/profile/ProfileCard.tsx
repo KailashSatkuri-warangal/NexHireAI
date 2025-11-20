@@ -13,7 +13,6 @@ import { Badge } from '../ui/badge';
 
 interface ProfileCardProps {
   profileData: User;
-  assessmentHistory: (AssessmentAttempt & { roleName?: string })[];
   onRunAnalysis: () => Promise<void>;
   onEdit: () => void;
   onViewInsights?: () => void;
@@ -21,7 +20,7 @@ interface ProfileCardProps {
   isOwnProfile: boolean;
 }
 
-export function ProfileCard({ profileData, assessmentHistory, onRunAnalysis, onEdit, onViewInsights, onAvatarUpload, isOwnProfile }: ProfileCardProps) {
+export function ProfileCard({ profileData, onRunAnalysis, onEdit, onViewInsights, onAvatarUpload, isOwnProfile }: ProfileCardProps) {
   const router = useRouter();
 
   const handleResumeUpload = async (file: File) => {
@@ -77,7 +76,7 @@ export function ProfileCard({ profileData, assessmentHistory, onRunAnalysis, onE
                 )}
             </div>
         </div>
-        <div className="flex-grow overflow-y-auto pr-4">
+        <div className="flex-grow pr-4">
           <ViewProfile profileData={profileData} onResumeUpload={handleResumeUpload} isOwnProfile={isOwnProfile} />
         </div>
       </div>

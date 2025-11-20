@@ -193,7 +193,7 @@ export default function ProfilePage() {
 
   return (
     <div className="relative min-h-full w-full flex items-center justify-center p-4">
-      <div className="w-full max-w-6xl h-[85vh] perspective">
+      <div className="w-full max-w-6xl h-full perspective">
             <motion.div
                 className="w-full h-full preserve-3d"
                 initial={false}
@@ -204,7 +204,6 @@ export default function ProfilePage() {
                 <div className="absolute w-full h-full backface-hidden" style={{ display: view === 'profile' ? 'block' : 'none' }}>
                     <ProfileCard 
                       profileData={profileData} 
-                      assessmentHistory={assessmentHistory}
                       onRunAnalysis={runAnalysis}
                       onEdit={() => handleViewChange('edit')}
                       onViewInsights={hasAnalysis ? () => handleViewChange('analysis') : undefined}
