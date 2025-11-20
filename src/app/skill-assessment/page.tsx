@@ -105,29 +105,17 @@ export default function SkillAssessmentPage() {
     });
   }
 
-  const handleStartOfficial = async (template: AssessmentTemplate) => {
-    if (!template.questionIds || template.questionIds.length === 0) {
-        toast({ title: "Not Ready", description: "This assessment is not configured with questions yet.", variant: "destructive" });
+  const handleStartOfficial = (template: AssessmentTemplate) => {
+    if (!template.questions || template.questions.length === 0) {
+        toast({ title: "Not Ready", description: "This assessment has no questions. Please contact an admin.", variant: "destructive" });
         return;
     }
-    
-    // In a real app, you'd fetch the full question objects from a `questionBank` collection
-    // Here we'll create placeholder questions based on the template.
-    const questions: Question[] = template.questionIds.map((id, i) => ({
-        id,
-        questionText: `Official Question ${i+1} for ${template.name}`,
-        type: 'mcq',
-        difficulty: 'Medium',
-        skill: template.skills[0] || 'general',
-        timeLimit: 120, // 2 minutes per question
-        tags: [template.role]
-    }));
 
     assessmentStore.setAssessment({
         id: template.id,
         roleId: template.roleId,
         roleName: template.name,
-        questions: questions,
+        questions: template.questions,
         totalTimeLimit: template.duration * 60,
         isTemplate: true,
         templateId: template.id,

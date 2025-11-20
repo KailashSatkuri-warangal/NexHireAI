@@ -18,6 +18,7 @@ const GeneratedQuestionSchema = z.object({
   difficulty: z.enum(['Easy', 'Medium', 'Hard']),
   skill: z.string().describe("The specific sub-skill this question relates to."),
   starterCode: z.string().optional(),
+  timeLimit: z.number().describe("Time limit in seconds for this question."),
 });
 
 // Zod schema for the entire batch of questions.
@@ -38,11 +39,15 @@ const GenerateTemplateInputSchema = z.object({
     })
 });
 
+// We are defining a new output schema that includes the questions themselves
+const TemplateWithQuestionsSchema = z.custom<AssessmentTemplate & { questions: Omit<Question, 'id'>[] }>();
+
+
 export const generateAssessmentTemplateFlow = ai.defineFlow(
   {
     name: 'generateAssessmentTemplateFlow',
     inputSchema: GenerateTemplateInputSchema,
-    outputSchema: z.custom<AssessmentTemplate>(),
+    outputSchema: TemplateWithQuestionsSchema,
   },
   async (input) => {
     const { roleName, roleId, assessmentName, subSkills, questionCount, duration, difficultyMix } = input;
@@ -66,6 +71,7 @@ export const generateAssessmentTemplateFlow = ai.defineFlow(
           - ${mediumCount} Medium
           - ${hardCount} Hard
         - **Question Types:** Create a diverse mix of 'mcq', 'short', and 'coding' questions.
+        - **Time Limit:** Assign a reasonable time limit in seconds for each question.
         - **For MCQs:** Create scenario-based questions, not simple definitions. Provide 4 options. 'correctAnswer' must be the full text of the correct option.
         - **For Short Answer:** Ask for one-line code fixes, brief conceptual comparisons, or command examples. 'correctAnswer' should be the ideal answer.
         - **For Coding:** Provide a clear problem statement, 3-5 test cases, and optional 'starterCode'. The 'correctAnswer' field is not needed.
@@ -80,12 +86,14 @@ export const generateAssessmentTemplateFlow = ai.defineFlow(
       throw new Error(`AI failed to generate questions for role ${roleName}.`);
     }
 
-    // This is where you would normally save the questions to a central `questionBank` collection.
-    // For this implementation, we will just return the IDs we generate.
-    // In a production app, you would batch write `newQuestion` to `questionBank/{newId}`
     const questionIds = generatedQuestions.map(() => uuidv4());
+    const fullQuestions = generatedQuestions.map((q, i) => ({
+        ...q,
+        id: questionIds[i],
+        tags: [roleName, q.skill],
+    }));
 
-    const assessmentTemplate: AssessmentTemplate = {
+    const assessmentTemplate: AssessmentTemplate & { questions: Question[] } = {
         id: uuidv4(),
         name: assessmentName,
         role: roleName,
@@ -94,7 +102,8 @@ export const generateAssessmentTemplateFlow = ai.defineFlow(
         questionCount: questionCount,
         duration: duration,
         difficultyMix: difficultyMix,
-        questionIds: questionIds, // In a real app, these are references to the questionBank
+        questionIds: questionIds, // Keep IDs for reference
+        questions: fullQuestions, // Embed the full questions
         status: 'active',
         version: '1.0',
         createdBy: 'Admin', // In a real app, this would be the current user's ID
@@ -105,6 +114,6 @@ export const generateAssessmentTemplateFlow = ai.defineFlow(
   }
 );
 
-export async function generateAssessmentTemplate(input: z.infer<typeof GenerateTemplateInputSchema>): Promise<AssessmentTemplate> {
+export async function generateAssessmentTemplate(input: z.infer<typeof GenerateTemplateInputSchema>): Promise<AssessmentTemplate & { questions: Question[] }> {
   return await generateAssessmentTemplateFlow(input);
 }
