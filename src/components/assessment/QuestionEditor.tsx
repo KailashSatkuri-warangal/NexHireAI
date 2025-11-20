@@ -1,4 +1,3 @@
-
 'use client';
 import {
   Dialog,
@@ -26,11 +25,11 @@ interface QuestionEditorProps {
 }
 
 export function QuestionEditor({ question, onSave, onClose }: QuestionEditorProps) {
-    const { register, handleSubmit, control, reset, watch } = useForm<Question>({
+    const { register, handleSubmit, control, reset, watch, setValue } = useForm<Question>({
         defaultValues: question || undefined
     });
 
-    const { fields, append, remove } = useFieldArray({
+    const { fields, append, remove, replace } = useFieldArray({
         control,
         name: "options"
     });
@@ -41,6 +40,7 @@ export function QuestionEditor({ question, onSave, onClose }: QuestionEditorProp
     });
     
     const questionType = watch("type");
+    const optionsWatch = watch("options");
 
     useEffect(() => {
         if (question) {
@@ -51,6 +51,15 @@ export function QuestionEditor({ question, onSave, onClose }: QuestionEditorProp
     const onSubmit = (data: Question) => {
         onSave(data);
     };
+
+    // When a radio button for the correct answer is clicked, we update the `correctAnswer` field's value
+    const handleCorrectAnswerChange = (optionIndex: number) => {
+        const selectedOptionValue = optionsWatch?.[optionIndex];
+        if(selectedOptionValue !== undefined){
+            setValue('correctAnswer', selectedOptionValue);
+        }
+    };
+
 
     return (
         <Dialog open={!!question} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -72,7 +81,7 @@ export function QuestionEditor({ question, onSave, onClose }: QuestionEditorProp
                                 name="type"
                                 control={control}
                                 render={({ field }) => (
-                                <Select onValueChange={field.onChange} value={field.value} disabled>
+                                <Select onValueChange={field.onChange} value={field.value}>
                                     <SelectTrigger><SelectValue /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="mcq">Multiple Choice</SelectItem>
@@ -109,23 +118,20 @@ export function QuestionEditor({ question, onSave, onClose }: QuestionEditorProp
                     {questionType === 'mcq' && (
                         <div className="space-y-4 pt-4 border-t">
                             <Label>Options & Correct Answer</Label>
-                            <Controller
-                                name="correctAnswer"
-                                control={control}
-                                render={({ field }) => (
-                                    <RadioGroup onValueChange={field.onChange} value={field.value} className="space-y-2">
-                                        {fields.map((item, index) => (
-                                            <div key={item.id} className="flex items-center gap-2">
-                                                <RadioGroupItem value={watch(`options.${index}`)} id={`option-radio-${index}`} />
-                                                <Input {...register(`options.${index}`)} placeholder={`Option ${index + 1}`} />
-                                                <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}>
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        ))}
-                                    </RadioGroup>
-                                )}
-                            />
+                            <RadioGroup
+                                value={watch('correctAnswer')}
+                                className="space-y-2"
+                            >
+                                {fields.map((item, index) => (
+                                    <div key={item.id} className="flex items-center gap-2">
+                                        <RadioGroupItem value={watch(`options.${index}`)} id={`option-radio-${index}`} onClick={() => handleCorrectAnswerChange(index)}/>
+                                        <Input {...register(`options.${index}`)} placeholder={`Option ${index + 1}`} />
+                                        <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}>
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                ))}
+                            </RadioGroup>
                              <Button type="button" variant="outline" size="sm" onClick={() => append('')}>
                                 <PlusCircle className="mr-2 h-4 w-4" /> Add Option
                             </Button>
