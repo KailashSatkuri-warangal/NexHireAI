@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 import { collection, getDocs, query, where, limit, orderBy, collectionGroup } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import type { User as UserType, Role, AssessmentAttempt } from '@/lib/types';
-import { format, subMonths } from 'date-fns';
+import { format, subMonths, startOfDay, endOfDay } from 'date-fns';
 
 const containerVariants = {
     hidden: { opacity: 1 },
@@ -37,7 +37,7 @@ export default function AdminHomePage() {
   const { firestore } = initializeFirebase();
   
   const [stats, setStats] = useState({ candidates: 0, assessments: 0, roles: 0, avgSuccess: 0 });
-  const [chartData, setChartData] = useState<{name: string, Candidates: number, Assessments: number}[]>([]);
+  const [chartData, setChartData] = useState<{name: string, Assessments: number}[]>([]);
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -47,80 +47,69 @@ export default function AdminHomePage() {
     const fetchData = async () => {
         setIsLoading(true);
         try {
-            // Fetch all assessments for stats and chart
+            // --- Fetch all data in parallel ---
             const assessmentsQuery = query(collectionGroup(firestore, 'assessments'), orderBy('submittedAt', 'desc'));
-            const assessmentsSnapshot = await getDocs(assessmentsQuery);
-            const allAssessments = assessmentsSnapshot.docs.map(doc => doc.data() as AssessmentAttempt);
+            const usersQuery = query(collection(firestore, 'users'), where('role', '==', 'candidate'));
+            const rolesQuery = query(collection(firestore, 'roles'));
+
+            const [assessmentsSnapshot, usersSnapshot, rolesSnapshot] = await Promise.all([
+                getDocs(assessmentsQuery),
+                getDocs(usersQuery),
+                getDocs(rolesQuery)
+            ]);
+
+            // --- Process Assessments ---
+            const allAssessments = assessmentsSnapshot.docs.map(doc => doc.data() as AssessmentAttempt & { id: string, userId: string });
             const totalAssessments = allAssessments.length;
-            
             const totalScore = allAssessments.reduce((acc, att) => acc + (att.finalScore || 0), 0);
             const avgSuccess = totalAssessments > 0 ? Math.round(totalScore / totalAssessments) : 0;
+            
+            // --- Process Users ---
+            const candidateCount = usersSnapshot.size;
 
-            // Fetch users for candidate count
-            const usersQuery = query(collection(firestore, 'users'), where('role', '==', 'candidate'));
-            const usersSnapshot = await getDocs(usersQuery);
-            const allUsers = usersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as UserType));
-            const candidateCount = allUsers.length;
-
-            // Fetch roles
-            const rolesQuery = query(collection(firestore, 'roles'));
-            const rolesSnapshot = await getDocs(rolesQuery);
+            // --- Process Roles ---
             const totalRoles = rolesSnapshot.size;
 
             setStats({ candidates: candidateCount, assessments: totalAssessments, roles: totalRoles, avgSuccess });
 
-            // Prepare chart data for last 6 months
-            const monthlyData: Record<string, { Candidates: number, Assessments: number }> = {};
+            // --- Prepare Chart Data (last 6 months) ---
+            const monthlyData: Record<string, { Assessments: number }> = {};
             for (let i = 5; i >= 0; i--) {
                 const month = format(subMonths(new Date(), i), 'MMM');
-                monthlyData[month] = { Candidates: 0, Assessments: 0 };
+                monthlyData[month] = { Assessments: 0 };
             }
-
-            const candidateJoinMonth: Record<string, string> = {};
             allAssessments.forEach(a => {
                 if (a.submittedAt) {
                      const month = format(new Date(a.submittedAt), 'MMM');
                      if (monthlyData[month]) {
                         monthlyData[month].Assessments++;
-                        // If we haven't seen this user join yet, mark their first assessment month as their join month
-                        if (!candidateJoinMonth[a.userId]) {
-                            candidateJoinMonth[a.userId] = month;
-                        }
                     }
                 }
             });
-
-            Object.values(candidateJoinMonth).forEach(month => {
-                if(monthlyData[month]) {
-                    monthlyData[month].Candidates++;
-                }
-            });
-
-
             setChartData(Object.entries(monthlyData).map(([name, values]) => ({ name, ...values })));
             
-            // Prepare recent activity
-            // Since we don't have user names on assessments, we fetch them separately
-            const recentUserIds = [...new Set(allAssessments.slice(0, 5).map(a => a.userId))];
-            const userNames = new Map<string, string>();
-            if(recentUserIds.length > 0) {
-              const usersByIdQuery = query(collection(firestore, 'users'), where('id', 'in', recentUserIds));
-              const usersByIdSnap = await getDocs(usersByIdQuery);
-              usersByIdSnap.forEach(doc => {
-                const userData = doc.data() as UserType;
-                userNames.set(doc.id, userData.name);
+            // --- Prepare Recent Activity ---
+            const recentAssessments = allAssessments.slice(0, 5);
+            const userIds = [...new Set(recentAssessments.map(a => a.userId))];
+            
+            const userNames: Map<string, string> = new Map();
+            if (userIds.length > 0) {
+              // Batch fetch user documents
+              const userDocs = await Promise.all(userIds.map(id => getDoc(doc(firestore, 'users', id))));
+              userDocs.forEach(docSnap => {
+                if(docSnap.exists()){
+                  userNames.set(docSnap.id, (docSnap.data() as UserType).name);
+                }
               });
             }
-            
-            const roleNames = new Map((await getDocs(collection(firestore, 'roles'))).docs.map(d => [d.id, (d.data() as Role).name]));
 
-            const assessmentActivities = allAssessments.slice(0, 5).map(a => ({
+            const roleNames = new Map(rolesSnapshot.docs.map(d => [d.id, (d.data() as Role).name]));
+            const assessmentActivities = recentAssessments.map(a => ({
                 type: 'assessment_completed' as const,
                 text: `${userNames.get(a.userId) || 'A candidate'} completed an assessment`,
                 subtext: `${roleNames.get(a.roleId) || 'Unknown Role'} - ${Math.round(a.finalScore || 0)}%`,
                 timestamp: a.submittedAt || 0,
             }));
-                
             setRecentActivity(assessmentActivities);
 
         } catch (error) {
@@ -142,7 +131,7 @@ export default function AdminHomePage() {
       <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.1),rgba(255,255,255,0))]"></div>
       
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-4xl font-bold mb-2 flex items-center gap-3"> Recruiter Dashboard</h1>
+        <h1 className="text-4xl font-bold mb-2"> Recruiter Dashboard</h1>
         <p className="text-lg text-muted-foreground mb-8">Welcome back, {user?.name}! Here's what's happening.</p>
       </motion.div>
 
@@ -189,7 +178,7 @@ export default function AdminHomePage() {
                 <Card className="bg-card/60 backdrop-blur-sm border-border/20 shadow-lg">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Active Roles</CardTitle>
-                        <UserCheck className="h-4 w-4 text-muted-foreground" />
+                        <ShieldCheck className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{stats.roles}</div>
@@ -208,26 +197,22 @@ export default function AdminHomePage() {
             <Card className="bg-card/60 backdrop-blur-sm border-border/20 shadow-lg">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2"><BarChart /> Platform Growth</CardTitle>
+                    <CardDescription>Assessments completed over the last 6 months.</CardDescription>
                 </CardHeader>
                 <CardContent className="h-[350px] pl-2">
                     <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 0 }}>
                             <defs>
-                                <linearGradient id="colorCandidates" x1="0" y1="0" x2="0" y2="1">
+                                <linearGradient id="colorAssessments" x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.8}/>
                                     <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
-                                </linearGradient>
-                                <linearGradient id="colorAssessments" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="hsl(var(--accent))" stopOpacity={0.8}/>
-                                    <stop offset="95%" stopColor="hsl(var(--accent))" stopOpacity={0}/>
                                 </linearGradient>
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border) / 0.5)" />
                             <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} />
                             <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
                             <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}/>
-                            <Area type="monotone" dataKey="Candidates" stroke="hsl(var(--primary))" fillOpacity={1} fill="url(#colorCandidates)" />
-                            <Area type="monotone" dataKey="Assessments" stroke="hsl(var(--accent))" fillOpacity={1} fill="url(#colorAssessments)" />
+                            <Area type="monotone" dataKey="Assessments" stroke="hsl(var(--primary))" fillOpacity={1} fill="url(#colorAssessments)" />
                         </AreaChart>
                     </ResponsiveContainer>
                 </CardContent>
@@ -237,18 +222,21 @@ export default function AdminHomePage() {
             <Card className="bg-card/60 backdrop-blur-sm border-border/20 shadow-lg">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2"><Activity /> Recent Activity</CardTitle>
+                    <CardDescription>Latest assessments completed by candidates.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {recentActivity.length > 0 ? recentActivity.map((item, index) => (
                        <div key={index} className="flex items-center">
-                            {item.type === 'new_candidate' ? <Users className="h-4 w-4 mr-3 text-muted-foreground" /> : <NotebookPen className="h-4 w-4 mr-3 text-muted-foreground" />}
+                            <div className="p-2 bg-primary/10 rounded-full mr-3">
+                              <NotebookPen className="h-4 w-4 text-primary" />
+                            </div>
                             <div className="text-sm">
                                 <p className="font-medium">{item.text}</p>
                                 <p className="text-xs text-muted-foreground">{item.subtext}</p>
                             </div>
                        </div>
                   )) : (
-                    <p className="text-sm text-muted-foreground">No recent activity.</p>
+                    <p className="text-sm text-center text-muted-foreground py-8">No recent activity.</p>
                   )}
                 </CardContent>
             </Card>
