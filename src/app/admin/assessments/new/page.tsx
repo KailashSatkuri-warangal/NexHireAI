@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
-import { Loader2, ArrowLeft, Wand2, Save, AlertTriangle } from 'lucide-react';
+import { Loader2, ArrowLeft, Wand2, Save } from 'lucide-react';
 import type { Role, Question, AssessmentTemplate } from '@/lib/types';
 import {
   AlertDialog,
@@ -28,9 +28,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/alert-dialog";
 import { motion, AnimatePresence } from 'framer-motion';
 import { QuestionPreview } from '@/components/assessment/QuestionPreview';
+import { QuestionEditor } from '@/components/assessment/QuestionEditor';
 
 
 const assessmentSchema = z.object({
@@ -60,6 +61,8 @@ export default function NewAssessmentPage() {
     
     const [view, setView] = useState<ViewState>('config');
     const [generatedTemplate, setGeneratedTemplate] = useState<(AssessmentTemplate & { questions: Question[] }) | null>(null);
+    const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
+
 
     const { register, handleSubmit, control, watch, setValue, formState: { errors } } = useForm<AssessmentFormData>({
         resolver: zodResolver(assessmentSchema),
@@ -71,6 +74,7 @@ export default function NewAssessmentPage() {
     });
 
     const questionCount = watch('questionCount');
+    const duration = watch('duration');
     const difficultyMix = watch('difficultyMix');
 
     useState(() => {
@@ -114,6 +118,21 @@ export default function NewAssessmentPage() {
         }).finally(() => {
             setIsGenerating(false);
         });
+    };
+
+    const handleUpdateQuestion = (updatedQuestion: Question) => {
+        if (!generatedTemplate) return;
+        
+        const updatedQuestions = generatedTemplate.questions.map(q => 
+            q.id === updatedQuestion.id ? updatedQuestion : q
+        );
+        
+        setGeneratedTemplate({
+            ...generatedTemplate,
+            questions: updatedQuestions
+        });
+        setEditingQuestion(null); // Close the dialog
+        toast({ title: "Question Updated", description: "The question has been successfully modified." });
     };
 
     const handleSave = async () => {
@@ -206,6 +225,9 @@ export default function NewAssessmentPage() {
                                             <Controller name="duration" control={control} render={({ field: { onChange, value } }) => (
                                                  <Input type="number" value={value} onChange={e => onChange(parseInt(e.target.value))} min={10} max={180} step={5} />
                                             )}/>
+                                             <p className="text-xs text-muted-foreground">
+                                                Avg. time per question: {questionCount > 0 && duration > 0 ? (duration * 60 / questionCount).toFixed(0) : 'N/A'} seconds
+                                            </p>
                                         </div>
                                     </div>
                                     
@@ -254,15 +276,20 @@ export default function NewAssessmentPage() {
                                 <CardTitle>2. Review & Save</CardTitle>
                                 <CardDescription>
                                     The AI has generated {generatedTemplate.questions.length} questions for the assessment "{generatedTemplate.name}".
-                                    Review them below. You can make changes after saving.
+                                    Review and edit them below before saving the template.
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4 max-h-[60vh] overflow-y-auto p-4 border rounded-md">
                                 {generatedTemplate.questions.map((q, i) => (
-                                    <QuestionPreview key={q.id} question={q} index={i} />
+                                    <QuestionPreview 
+                                        key={q.id} 
+                                        question={q} 
+                                        index={i} 
+                                        onEdit={() => setEditingQuestion(q)} 
+                                    />
                                 ))}
                             </CardContent>
-                            <CardFooter className="flex justify-end gap-2">
+                            <CardFooter className="flex justify-end gap-2 mt-4">
                                 <Button variant="ghost" onClick={() => setView('config')}>Back to Config</Button>
                                  <AlertDialog>
                                     <AlertDialogTrigger asChild>
@@ -292,6 +319,12 @@ export default function NewAssessmentPage() {
                     </motion.div>
                 )}
             </AnimatePresence>
+            
+            <QuestionEditor 
+                question={editingQuestion}
+                onSave={handleUpdateQuestion}
+                onClose={() => setEditingQuestion(null)}
+            />
         </div>
     );
 }

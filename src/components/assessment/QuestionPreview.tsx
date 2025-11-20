@@ -3,14 +3,16 @@
 import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import type { Question } from '@/lib/types';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, Pencil } from 'lucide-react';
+import { Button } from '../ui/button';
 
 interface QuestionPreviewProps {
     question: Question;
     index: number;
+    onEdit?: () => void;
 }
 
-export function QuestionPreview({ question, index }: QuestionPreviewProps) {
+export function QuestionPreview({ question, index, onEdit }: QuestionPreviewProps) {
     
     const getDifficultyColor = (difficulty: 'Easy' | 'Medium' | 'Hard') => {
         switch(difficulty) {
@@ -32,6 +34,11 @@ export function QuestionPreview({ question, index }: QuestionPreviewProps) {
                         <Badge variant="secondary" className="capitalize">{question.type}</Badge>
                     </CardDescription>
                 </div>
+                 {onEdit && (
+                    <Button variant="ghost" size="icon" onClick={onEdit}>
+                        <Pencil className="h-4 w-4" />
+                    </Button>
+                )}
             </CardHeader>
             <CardContent>
                 {question.type === 'mcq' && (
@@ -75,4 +82,3 @@ export function QuestionPreview({ question, index }: QuestionPreviewProps) {
         </Card>
     );
 }
-
