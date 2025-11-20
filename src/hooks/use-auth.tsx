@@ -18,7 +18,7 @@ import {
   onAuthStateChanged,
   User as FirebaseUser,
 } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import type { User, RoleType } from '@/lib/types';
 import type { SignupData } from '@/lib/auth';
 import { initializeFirebase } from '@/firebase';
@@ -69,6 +69,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 email: firebaseUser.email!,
                 name: firebaseUser.displayName || "New User",
                 role: 'candidate', // Default role
+                createdAt: {
+                  seconds: Math.floor(Date.now() / 1000),
+                  nanoseconds: 0
+                }
             };
             await setDoc(userDocRef, fullProfile, { merge: true });
         }
@@ -133,13 +137,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
     const firebaseUser = userCredential.user;
 
-    const userProfile: Omit<User, 'id'> = {
+    const userProfile = {
       name,
       email,
       role,
       avatarUrl: `https://picsum.photos/seed/${firebaseUser.uid}/200`,
       xp: 0,
       badges: [],
+      createdAt: serverTimestamp(),
       ...(role === 'candidate' && { candidateSpecific: { skills: [], locationPreferences: [] } }),
       ...(role === 'recruiter' && { recruiterSpecific: { 
           companyName: 'Example Corp',
