@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -55,7 +54,6 @@ export default function AdminHomePage() {
             const rolesQuery = query(collection(firestore, 'roles'));
             const assessmentTemplatesQuery = query(collection(firestore, 'assessments'), where('status', '==', 'active'));
             // Use a collection group query to get the last 5 attempts across all users.
-            // This requires a Firestore index. If it fails, the catch block will show an error.
             const allAttemptsQuery = query(collectionGroup(firestore, 'assessments'), orderBy('submittedAt', 'desc'), limit(5));
             
             const [
@@ -75,7 +73,16 @@ export default function AdminHomePage() {
             const candidateCount = candidatesData.length;
             const totalRoles = rolesSnapshot.size;
             const activeTemplates = templatesSnapshot.size;
-            const allAttemptsData = allAttemptsSnapshot.docs.map(doc => doc.data() as AssessmentAttempt);
+            
+            const allAttemptsData = allAttemptsSnapshot.docs.map(doc => {
+                const data = doc.data();
+                // Find the user ID from the document path
+                const pathParts = doc.ref.path.split('/');
+                const userIdIndex = pathParts.indexOf('users') + 1;
+                const userId = pathParts[userIdIndex];
+                return { ...data, userId } as AssessmentAttempt;
+            });
+
             const totalScore = allAttemptsData.reduce((acc, att) => acc + (att.finalScore || 0), 0);
             const avgSuccess = allAttemptsData.length > 0 ? Math.round(totalScore / allAttemptsData.length) : 0;
             
@@ -93,7 +100,6 @@ export default function AdminHomePage() {
                 monthlyData[month] = { Candidates: 0 };
             }
             candidatesData.forEach(c => {
-                // Check if createdAt exists and is a Firestore timestamp
                 if (c.createdAt && typeof c.createdAt.seconds === 'number') {
                      const joinDate = new Date(c.createdAt.seconds * 1000);
                      const month = format(joinDate, 'MMM');
@@ -268,5 +274,3 @@ export default function AdminHomePage() {
     </div>
   );
 }
-
-    
