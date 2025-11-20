@@ -17,6 +17,7 @@ import { populateRoles } from '@/ai/flows/populate-roles-flow';
 import { generateAssessment } from '@/ai/flows/generate-assessment-flow';
 import { useAssessmentStore } from '@/hooks/use-assessment-store';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 
 export default function SkillAssessmentPage() {
   const { user, isLoading: authIsLoading } = useAuth();
