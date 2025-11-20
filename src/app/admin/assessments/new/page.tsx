@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
-import { Loader2, ArrowLeft, Wand2, Save } from 'lucide-react';
+import { Loader2, ArrowLeft, Wand2, Save, Pencil } from 'lucide-react';
 import type { Role, Question, AssessmentTemplate } from '@/lib/types';
 import {
   AlertDialog,
@@ -31,6 +31,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { QuestionPreview } from '@/components/assessment/QuestionPreview';
 import { QuestionEditor } from '@/components/assessment/QuestionEditor';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 
 const assessmentSchema = z.object({
@@ -47,7 +48,7 @@ const assessmentSchema = z.object({
 
 type AssessmentFormData = z.infer<typeof assessmentSchema>;
 
-type ViewState = 'config' | 'preview';
+type ViewState = 'config' | 'preview' | 'manual';
 
 export default function NewAssessmentPage() {
     const { firestore } = initializeFirebase();
@@ -173,7 +174,7 @@ export default function NewAssessmentPage() {
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back to {view === 'preview' ? 'Configuration' : 'Assessments'}
             </Button>
             <h1 className="text-4xl font-bold mb-2">Create New Assessment Template</h1>
-            <p className="text-muted-foreground mb-8">Define parameters for the AI to generate a new assessment, then review and save.</p>
+            <p className="text-muted-foreground mb-8">Define parameters and questions for a new assessment.</p>
             
              <AnimatePresence mode="wait">
                 {view === 'config' && (
@@ -186,90 +187,176 @@ export default function NewAssessmentPage() {
                     >
                         <form onSubmit={handleSubmit(onGenerate)}>
                             <Card className="max-w-4xl mx-auto bg-card/60 backdrop-blur-sm border-border/20 shadow-lg">
-                                <CardHeader>
-                                    <CardTitle>1. Configure AI Generation</CardTitle>
-                                    <CardDescription>Set the high-level details for your assessment.</CardDescription>
-                                </CardHeader>
-                                <CardContent className="space-y-6">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="name">Assessment Name</Label>
-                                            <Input id="name" {...register('name')} placeholder="e.g., Senior Frontend Developer Screening" />
-                                            {errors.name && <p className="text-red-500 text-sm">{errors.name.message}</p>}
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="roleId">Target Role</Label>
-                                            <Controller
-                                                name="roleId"
-                                                control={control}
-                                                render={({ field }) => (
-                                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                        <SelectTrigger disabled={isLoadingRoles}>
-                                                            <SelectValue placeholder="Select a role..." />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {isLoadingRoles ? (
-                                                                <SelectItem value="loading" disabled>Loading roles...</SelectItem>
-                                                            ) : (
-                                                                roles.map(role => <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>)
-                                                            )}
-                                                        </SelectContent>
-                                                    </Select>
-                                                )}
-                                            />
-                                            {errors.roleId && <p className="text-red-500 text-sm">{errors.roleId.message}</p>}
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="questionCount">Number of Questions ({questionCount})</Label>
-                                            <Controller name="questionCount" control={control} render={({ field: { onChange, value } }) => (
-                                                <Slider onValueChange={(v) => onChange(v[0])} value={[value]} min={5} max={50} step={1} />
-                                            )}/>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="duration">Duration (minutes)</Label>
-                                            <Controller name="duration" control={control} render={({ field: { onChange, value } }) => (
-                                                 <Input type="number" value={value} onChange={e => onChange(parseInt(e.target.value))} min={10} max={180} step={5} />
-                                            )}/>
-                                             <p className="text-xs text-muted-foreground">
-                                                Avg. time per question: {questionCount > 0 && duration > 0 ? (duration * 60 / questionCount).toFixed(0) : 'N/A'} seconds
-                                            </p>
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="space-y-2">
-                                        <Label>Difficulty Mix</Label>
-                                        <Controller name="difficultyMix" control={control} render={({ field }) => (
-                                            <>
-                                                <Slider
-                                                    value={[field.value.easy, field.value.easy + field.value.medium]}
-                                                    onValueChange={handleSliderChange}
-                                                    min={0} max={100} step={5}
-                                                    className="mt-4"
-                                                />
-                                                <div className="flex justify-between text-sm text-muted-foreground mt-2">
-                                                    <span style={{ color: '#22c55e' }}>Easy: {difficultyMix.easy}%</span>
-                                                    <span style={{ color: '#f97316' }}>Medium: {difficultyMix.medium}%</span>
-                                                    <span style={{ color: '#ef4444' }}>Hard: {difficultyMix.hard}%</span>
+                                <Tabs defaultValue="generate">
+                                    <TabsList className="grid w-full grid-cols-2">
+                                        <TabsTrigger value="generate">Generate with AI</TabsTrigger>
+                                        <TabsTrigger value="manual">Create Manually</TabsTrigger>
+                                    </TabsList>
+                                    <TabsContent value="generate">
+                                        <CardHeader>
+                                            <CardTitle>1. Configure AI Generation</CardTitle>
+                                            <CardDescription>Set the high-level details for your assessment.</CardDescription>
+                                        </CardHeader>
+                                        <CardContent className="space-y-6">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="name">Assessment Name</Label>
+                                                    <Input id="name" {...register('name')} placeholder="e.g., Senior Frontend Developer Screening" />
+                                                    {errors.name && <p className="text-red-500 text-sm">{errors.name.message}</p>}
                                                 </div>
-                                            </>
-                                        )}/>
-                                    </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="roleId">Target Role</Label>
+                                                    <Controller
+                                                        name="roleId"
+                                                        control={control}
+                                                        render={({ field }) => (
+                                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                                <SelectTrigger disabled={isLoadingRoles}>
+                                                                    <SelectValue placeholder="Select a role..." />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {isLoadingRoles ? (
+                                                                        <SelectItem value="loading" disabled>Loading roles...</SelectItem>
+                                                                    ) : (
+                                                                        roles.map(role => <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>)
+                                                                    )}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        )}
+                                                    />
+                                                    {errors.roleId && <p className="text-red-500 text-sm">{errors.roleId.message}</p>}
+                                                </div>
+                                            </div>
 
-                                </CardContent>
-                                <CardFooter>
-                                    <Button type="submit" disabled={isGenerating}>
-                                        {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                        <Wand2 className="mr-2 h-4 w-4" />
-                                        {isGenerating ? 'Generating...' : 'Generate Questions'}
-                                    </Button>
-                                </CardFooter>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="questionCount">Number of Questions ({questionCount})</Label>
+                                                    <Controller name="questionCount" control={control} render={({ field: { onChange, value } }) => (
+                                                        <Slider onValueChange={(v) => onChange(v[0])} value={[value]} min={5} max={50} step={1} />
+                                                    )}/>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="duration">Duration (minutes)</Label>
+                                                    <Controller name="duration" control={control} render={({ field: { onChange, value } }) => (
+                                                        <Input type="number" value={value} onChange={e => onChange(parseInt(e.target.value))} min={10} max={180} step={5} />
+                                                    )}/>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Avg. time per question: {questionCount > 0 && duration > 0 ? (duration * 60 / questionCount).toFixed(0) : 'N/A'} seconds
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="space-y-2">
+                                                <Label>Difficulty Mix</Label>
+                                                <Controller name="difficultyMix" control={control} render={({ field }) => (
+                                                    <>
+                                                        <Slider
+                                                            value={[field.value.easy, field.value.easy + field.value.medium]}
+                                                            onValueChange={handleSliderChange}
+                                                            min={0} max={100} step={5}
+                                                            className="mt-4"
+                                                        />
+                                                        <div className="flex justify-between text-sm text-muted-foreground mt-2">
+                                                            <span style={{ color: '#22c55e' }}>Easy: {difficultyMix.easy}%</span>
+                                                            <span style={{ color: '#f97316' }}>Medium: {difficultyMix.medium}%</span>
+                                                            <span style={{ color: '#ef4444' }}>Hard: {difficultyMix.hard}%</span>
+                                                        </div>
+                                                    </>
+                                                )}/>
+                                            </div>
+
+                                        </CardContent>
+                                        <CardFooter>
+                                            <Button type="submit" disabled={isGenerating}>
+                                                {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                                <Wand2 className="mr-2 h-4 w-4" />
+                                                {isGenerating ? 'Generating...' : 'Generate Questions'}
+                                            </Button>
+                                        </CardFooter>
+                                    </TabsContent>
+                                     <TabsContent value="manual">
+                                         <CardHeader>
+                                            <CardTitle>1. Configure Manual Creation</CardTitle>
+                                            <CardDescription>Set the details for your assessment and then add questions manually.</CardDescription>
+                                        </CardHeader>
+                                         <CardContent className="space-y-6">
+                                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="name_manual">Assessment Name</Label>
+                                                    <Input id="name_manual" {...register('name')} placeholder="e.g., Senior Frontend Developer Screening" />
+                                                    {errors.name && <p className="text-red-500 text-sm">{errors.name.message}</p>}
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="roleId_manual">Target Role</Label>
+                                                     <Controller
+                                                        name="roleId"
+                                                        control={control}
+                                                        render={({ field }) => (
+                                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                                <SelectTrigger disabled={isLoadingRoles}>
+                                                                    <SelectValue placeholder="Select a role..." />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {isLoadingRoles ? (
+                                                                        <SelectItem value="loading" disabled>Loading roles...</SelectItem>
+                                                                    ) : (
+                                                                        roles.map(role => <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>)
+                                                                    )}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        )}
+                                                    />
+                                                    {errors.roleId && <p className="text-red-500 text-sm">{errors.roleId.message}</p>}
+                                                </div>
+                                            </div>
+                                             <div className="space-y-2">
+                                                <Label htmlFor="duration_manual">Duration (minutes)</Label>
+                                                <Input id="duration_manual" type="number" {...register('duration')} />
+                                            </div>
+                                              <div className="text-center p-4 border-dashed border-2 rounded-md">
+                                                <p className="text-muted-foreground">The manual question editor will appear here.</p>
+                                            </div>
+                                         </CardContent>
+                                        <CardFooter>
+                                            <Button type="button" onClick={() => setView('manual')}>
+                                                <Pencil className="mr-2 h-4 w-4" />
+                                                Proceed to Add Questions
+                                            </Button>
+                                        </CardFooter>
+                                    </TabsContent>
+                                </Tabs>
                             </Card>
                         </form>
                     </motion.div>
                 )}
+                
+                 {view === 'manual' && (
+                     <motion.div
+                        key="manual-view"
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.3, ease: 'easeInOut' }}
+                     >
+                        <Card className="bg-card/60 backdrop-blur-sm border-border/20 shadow-lg">
+                             <CardHeader>
+                                <CardTitle>Manually Add Questions</CardTitle>
+                                <CardDescription>
+                                    Add, edit, and reorder questions for your assessment.
+                                </CardDescription>
+                            </CardHeader>
+                             <CardContent className="h-96 flex items-center justify-center border-dashed border-2 rounded-md">
+                                <p className="text-muted-foreground">Full manual question editor coming soon.</p>
+                            </CardContent>
+                            <CardFooter className="flex justify-end gap-2 mt-4">
+                                <Button variant="ghost" onClick={() => setView('config')}>Back to Config</Button>
+                                <Button disabled>
+                                    <Save className="mr-2 h-4 w-4" /> Save Template
+                                </Button>
+                            </CardFooter>
+                        </Card>
+                    </motion.div>
+                )}
+
 
                  {view === 'preview' && generatedTemplate && (
                      <motion.div
