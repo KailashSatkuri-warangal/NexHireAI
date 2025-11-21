@@ -1,12 +1,12 @@
 
 'use client';
 import { useState, useEffect } from 'react';
-import { collection, query, onSnapshot, getDocs, doc, writeBatch } from 'firebase/firestore';
+import { collection, query, onSnapshot, getDocs, doc, writeBatch, where } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import type { Cohort, User, AssessmentTemplate } from '@/lib/types';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, FolderKanban, Users, NotebookPen, Send } from 'lucide-react';
+import { Loader2, FolderKanban, Users, NotebookPen, Send, BarChart2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -21,11 +21,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { format } from 'date-fns';
+import { useRouter } from 'next/navigation';
 
 export default function PipelinePage() {
     const { firestore } = initializeFirebase();
     const { user: adminUser } = useAuth();
     const { toast } = useToast();
+    const router = useRouter();
 
     const [cohorts, setCohorts] = useState<Cohort[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -43,9 +45,17 @@ export default function PipelinePage() {
 
             const populatedCohorts = await Promise.all(cohortsData.map(async (cohort) => {
                 if (cohort.candidateIds && cohort.candidateIds.length > 0) {
-                    const userDocs = await Promise.all(cohort.candidateIds.map(id => getDocs(query(collection(firestore, 'users'), where('__name__', '==', id)))));
-                    const users = userDocs.flatMap(snap => snap.docs.map(d => ({ id: d.id, ...d.data() } as User)));
-                    return { ...cohort, candidates: users };
+                     try {
+                        const usersRef = collection(firestore, 'users');
+                        const q = query(usersRef, where('__name__', 'in', cohort.candidateIds));
+                        const userDocs = await getDocs(q);
+                        const users = userDocs.docs.map(d => ({ id: d.id, ...d.data() } as User));
+                        return { ...cohort, candidates: users };
+                    } catch (e) {
+                        console.error("Error fetching users for cohort:", cohort.id, e);
+                        // Return cohort without candidates if fetch fails
+                        return { ...cohort, candidates: [] };
+                    }
                 }
                 return { ...cohort, candidates: [] };
             }));
@@ -189,7 +199,9 @@ export default function PipelinePage() {
                                 </CardContent>
                                 <CardFooter>
                                     {cohort.assignedAssessmentId ? (
-                                        <Button variant="outline" className="w-full">View Leaderboard</Button>
+                                        <Button className="w-full" onClick={() => router.push(`/admin/pipeline/${cohort.id}`)}>
+                                            <BarChart2 className="mr-2 h-4 w-4" /> View Leaderboard
+                                        </Button>
                                     ) : (
                                         <Button className="w-full" onClick={() => handleOpenDialog(cohort)}>
                                             <Send className="mr-2 h-4 w-4" /> Assign Assessment
