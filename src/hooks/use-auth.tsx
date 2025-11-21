@@ -157,6 +157,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const userDocRef = doc(firestore, 'users', firebaseUser.uid);
     await setDoc(userDocRef, userProfile);
     
+    // Sign out immediately after creating the profile.
+    // This forces them to log in, which correctly fetches the user role and redirects.
     await signOut(auth);
   };
 

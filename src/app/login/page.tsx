@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -126,7 +127,7 @@ function LoginForm({ setIsLoginMode }: { setIsLoginMode: (isLogin: boolean) => v
         try {
             await login(email, password);
             toast({ title: "Login Successful", description: "Welcome back!" });
-            router.push('/dashboard');
+            // The login function in useAuth now handles redirection
         } catch (error) {
             toast({
                 title: "Login Failed",
@@ -199,7 +200,7 @@ function SignupForm({ setIsLoginMode }: { setIsLoginMode: (isLogin: boolean) => 
 
         try {
             await signup({ name, email, password, role });
-            toast({ title: "Signup Successful", description: "Welcome! You can now log in." });
+            toast({ title: "Account Created!", description: "Welcome! Please log in to continue." });
             setIsLoginMode(true);
         } catch (error) {
             toast({
