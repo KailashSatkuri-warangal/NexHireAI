@@ -37,63 +37,37 @@ export default function AdminHomePage() {
   const { user } = useAuth();
   const { firestore } = initializeFirebase();
   
-  const [stats, setStats] = useState({ candidates: 0, activeAssessments: 0, roles: 0, avgSuccess: 0 });
+  const [stats, setStats] = useState({ candidates: 0, activeAssessments: 0, roles: 0 });
   const [chartData, setChartData] = useState<{name: string, Candidates: number}[]>([]);
-  const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Only run if firestore and user are initialized
     if (!firestore || !user) return;
 
     const fetchData = async () => {
         setIsLoading(true);
         try {
-            // --- 1. Fetch all primary collections in parallel ---
-            const candidatesQuery = query(collection(firestore, 'users'), where('role', '==', 'candidate'));
-            const rolesQuery = query(collection(firestore, 'roles'));
-            const assessmentTemplatesQuery = query(collection(firestore, 'assessments'), where('status', '==', 'active'));
-            // Use a collection group query to get the last 5 attempts across all users.
-            const allAttemptsQuery = query(collectionGroup(firestore, 'assessments'), orderBy('submittedAt', 'desc'), limit(5));
-            
-            const [
-                candidatesSnapshot,
-                rolesSnapshot,
-                templatesSnapshot,
-                allAttemptsSnapshot,
-            ] = await Promise.all([
-                getDocs(candidatesQuery),
-                getDocs(rolesQuery),
-                getDocs(templatesSnapshot),
-                getDocs(allAttemptsQuery),
-            ]);
+            // 1. Fetch all collections directly
+            const usersSnapshot = await getDocs(collection(firestore, 'users'));
+            const rolesSnapshot = await getDocs(collection(firestore, 'roles'));
+            const assessmentsSnapshot = await getDocs(collection(firestore, 'assessments'));
 
-            // --- 2. Process Data for Stats Cards ---
-            const candidatesData = candidatesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserType & { createdAt?: { seconds: number } }));
-            const candidateCount = candidatesData.length;
+            // 2. Process data on the client side
+            const allUsers = usersSnapshot.docs.map(doc => doc.data() as UserType);
+            const candidateCount = allUsers.filter(u => u.role === 'candidate').length;
+            
+            const allAssessments = assessmentsSnapshot.docs.map(doc => doc.data() as AssessmentTemplate);
+            const activeAssessmentsCount = allAssessments.filter(a => a.status === 'active').length;
+
             const totalRoles = rolesSnapshot.size;
-            const activeTemplates = templatesSnapshot.size;
-            
-            const allAttemptsData = allAttemptsSnapshot.docs.map(doc => {
-                const data = doc.data();
-                // Find the user ID from the document path
-                const pathParts = doc.ref.path.split('/');
-                const userIdIndex = pathParts.indexOf('users') + 1;
-                const userId = pathParts[userIdIndex];
-                return { ...data, userId } as AssessmentAttempt;
+
+            setStats({
+                candidates: candidateCount,
+                activeAssessments: activeAssessmentsCount,
+                roles: totalRoles
             });
 
-            const totalScore = allAttemptsData.reduce((acc, att) => acc + (att.finalScore || 0), 0);
-            const avgSuccess = allAttemptsData.length > 0 ? Math.round(totalScore / allAttemptsData.length) : 0;
-            
-            setStats({ 
-                candidates: candidateCount, 
-                activeAssessments: activeTemplates,
-                roles: totalRoles, 
-                avgSuccess 
-            });
-
-            // --- 3. Prepare Candidate Growth Chart Data (last 6 months) ---
+            // 3. Prepare Chart Data (unchanged)
             const monthlyData: Record<string, { Candidates: number }> = {};
             const sixMonthsAgo = subMonths(new Date(), 5);
             sixMonthsAgo.setDate(1);
@@ -102,7 +76,7 @@ export default function AdminHomePage() {
                 const month = format(subMonths(new Date(), i), 'MMM');
                 monthlyData[month] = { Candidates: 0 };
             }
-            candidatesData.forEach(c => {
+            allUsers.forEach(c => {
                 if (c.createdAt && typeof c.createdAt.seconds === 'number') {
                      const joinDate = new Date(c.createdAt.seconds * 1000);
                      if (joinDate >= sixMonthsAgo) {
@@ -114,40 +88,10 @@ export default function AdminHomePage() {
                 }
             });
             setChartData(Object.entries(monthlyData).map(([name, values]) => ({ name, ...values })));
-            
-            // --- 4. Prepare Unified Recent Activity Feed ---
-            const userNames = new Map(candidatesData.map(c => [c.id, c.name]));
-            const roleNames = new Map(rolesSnapshot.docs.map(d => [d.id, (d.data() as Role).name]));
-            
-            const candidateActivities: ActivityItem[] = candidatesData
-                .filter(c => c.createdAt?.seconds)
-                .sort((a,b) => b.createdAt!.seconds - a.createdAt!.seconds)
-                .slice(0, 5) // Take the 5 most recent candidates
-                .map(c => ({
-                    type: 'new_candidate',
-                    text: `${c.name} just signed up`,
-                    subtext: c.createdAt ? `Joined on ${format(new Date(c.createdAt.seconds * 1000), 'PP')}` : '',
-                    timestamp: (c.createdAt?.seconds || 0) * 1000,
-                    icon: <UserCheck className="h-4 w-4 text-primary" />,
-                }));
 
-            const assessmentActivities: ActivityItem[] = allAttemptsData.map(a => ({
-                type: 'assessment_completed',
-                text: `${userNames.get(a.userId) || 'A candidate'} completed an assessment`,
-                subtext: `${roleNames.get(a.roleId) || 'Unknown Role'} - Score: ${Math.round(a.finalScore || 0)}%`,
-                timestamp: a.submittedAt || 0,
-                icon: <NotebookPen className="h-4 w-4 text-primary" />,
-            }));
-
-            const combinedActivity = [...candidateActivities, ...assessmentActivities]
-                .sort((a, b) => b.timestamp - a.timestamp)
-                .slice(0, 5);
-                
-            setRecentActivity(combinedActivity);
 
         } catch (error) {
             console.error("Failed to fetch admin dashboard data:", error);
-            // You could set an error state here to show a message to the user
         } finally {
             setIsLoading(false);
         }
@@ -215,7 +159,7 @@ export default function AdminHomePage() {
                         <TrendingUp className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{stats.avgSuccess}%</div>
+                        <div className="text-2xl font-bold">N/A</div>
                     </CardContent>
                 </Card>
             </motion.div>
@@ -259,19 +203,9 @@ export default function AdminHomePage() {
                     <CardDescription>Latest platform events.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {recentActivity.length > 0 ? recentActivity.map((item, index) => (
-                       <div key={index} className="flex items-center">
-                            <div className="p-2 bg-primary/10 rounded-full mr-3">
-                              {item.icon}
-                            </div>
-                            <div className="text-sm">
-                                <p className="font-medium">{item.text}</p>
-                                <p className="text-xs text-muted-foreground">{item.subtext}</p>
-                            </div>
-                       </div>
-                  )) : (
-                    <p className="text-sm text-center text-muted-foreground py-8">No recent activity.</p>
-                  )}
+                  
+                    <p className="text-sm text-center text-muted-foreground py-8">Recent activity feed is temporarily disabled.</p>
+                  
                 </CardContent>
             </Card>
         </motion.div>
