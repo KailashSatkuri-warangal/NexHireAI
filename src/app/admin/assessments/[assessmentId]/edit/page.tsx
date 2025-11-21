@@ -83,20 +83,28 @@ export default function EditAssessmentPage() {
             if (assessmentSnap.exists()) {
                 const templateData = assessmentSnap.data() as AssessmentTemplate;
                 
-                // Fetch associated questions
+                // Fetch associated questions in batches of 30 (Firestore 'in' query limit)
                 let questions: Question[] = [];
-                if(templateData.questionIds && templateData.questionIds.length > 0) {
-                  const questionsQuery = query(collection(firestore, 'questionBank'), where('__name__', 'in', templateData.questionIds));
-                  const questionsSnap = await getDocs(questionsQuery);
-                  questions = questionsSnap.docs.map(d => ({id: d.id, ...d.data()} as Question));
+                const questionIds = templateData.questionIds || [];
+                if (questionIds.length > 0) {
+                    for (let i = 0; i < questionIds.length; i += 30) {
+                        const chunk = questionIds.slice(i, i + 30);
+                        const questionsQuery = query(collection(firestore, 'questionBank'), where('__name__', 'in', chunk));
+                        const questionsSnap = await getDocs(questionsQuery);
+                        const questionsChunk = questionsSnap.docs.map(d => ({id: d.id, ...d.data()} as Question));
+                        questions.push(...questionsChunk);
+                    }
                 }
+                
+                // Order questions according to the template's questionIds array
+                const orderedQuestions = templateData.questionIds.map(id => questions.find(q => q.id === id)).filter(Boolean) as Question[];
 
-                const fullTemplateData = { ...templateData, questions };
+                const fullTemplateData = { ...templateData, questions: orderedQuestions };
                 setDraftTemplate(fullTemplateData);
 
                 // Find roleId for the given role name to set default value correctly
                 const roleId = rolesData.find(r => r.name === templateData.role)?.id || '';
-                reset({ ...templateData, roleId });
+                reset({ ...templateData, roleId, questionCount: fullTemplateData.questions.length });
             } else {
                 toast({ title: "Assessment not found", variant: "destructive" });
                 router.push('/admin/assessments');
@@ -120,19 +128,23 @@ export default function EditAssessmentPage() {
       const assessmentRef = doc(firestore, 'assessments', assessmentId);
       const selectedRole = roles.find(r => r.id === data.roleId);
 
+      // Create a plain object for Firestore update
+      const { ...formData } = data;
+      
       // 1. Update the main assessment template document
       const templateToUpdate = {
-        ...data,
+        ...formData,
         role: selectedRole?.name || '',
         questionIds: draftTemplate.questions.map(q => q.id),
-        questionCount: draftTemplate.questions.length,
+        questionCount: draftTemplate.questions.length, // Recalculate count
       };
       batch.update(assessmentRef, templateToUpdate);
 
       // 2. Update all questions in the questionBank
       for (const question of draftTemplate.questions) {
         const questionRef = doc(firestore, 'questionBank', question.id);
-        batch.set(questionRef, question); // Use set to either create new or update existing
+        const { id, ...questionData } = question;
+        batch.set(questionRef, questionData); // Use set to either create new or update existing
       }
       
       await batch.commit();
@@ -326,5 +338,3 @@ export default function EditAssessmentPage() {
     </div>
   );
 }
-
-    

@@ -1,14 +1,14 @@
 
 'use client';
 import { useState, useEffect } from 'react';
-import { collection, getDocs, query, onSnapshot, deleteDoc, doc, writeBatch, where, addDoc } from 'firebase/firestore';
+import { collection, getDocs, query, onSnapshot, deleteDoc, doc, writeBatch, where, addDoc, updateDoc } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, NotebookPen, CheckCircle, BarChart, Clock, Loader2, FileJson, BrainCircuit, Trash2, Pencil, Copy, PowerOff, Upload, Download } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, NotebookPen, CheckCircle, BarChart, Clock, Loader2, FileJson, BrainCircuit, Trash2, Pencil, Copy, PowerOff, Upload, Download, Power } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { AssessmentTemplate, Question } from '@/lib/types';
 import { format } from 'date-fns';
@@ -84,9 +84,13 @@ export default function AssessmentsPage() {
 
             // 2. Delete all associated questions from the question bank
             if (selectedForDelete.questionIds && selectedForDelete.questionIds.length > 0) {
-                for (const questionId of selectedForDelete.questionIds) {
-                    const questionRef = doc(firestore, 'questionBank', questionId);
-                    batch.delete(questionRef);
+                // Firestore 'in' query has a limit of 30, so batch deletions if necessary
+                 for (let i = 0; i < selectedForDelete.questionIds.length; i += 30) {
+                    const chunk = selectedForDelete.questionIds.slice(i, i + 30);
+                    for (const questionId of chunk) {
+                         const questionRef = doc(firestore, 'questionBank', questionId);
+                         batch.delete(questionRef);
+                    }
                 }
             }
 
@@ -107,10 +111,14 @@ export default function AssessmentsPage() {
         
         try {
             let questions: Question[] = [];
-            if (assessment.questionIds && assessment.questionIds.length > 0) {
-                const qQuery = query(collection(firestore, 'questionBank'), where('__name__', 'in', assessment.questionIds));
-                const questionsSnap = await getDocs(qQuery);
-                questions = questionsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Question));
+            const questionIds = assessment.questionIds || [];
+            if (questionIds.length > 0) {
+                for (let i = 0; i < questionIds.length; i += 30) {
+                    const chunk = questionIds.slice(i, i + 30);
+                    const qQuery = query(collection(firestore, 'questionBank'), where('__name__', 'in', chunk));
+                    const questionsSnap = await getDocs(qQuery);
+                    questions.push(...questionsSnap.docs.map(d => ({ ...d.data() } as Omit<Question, 'id'>)));
+                }
             }
             
             const exportData = { ...assessment, questions };
@@ -144,54 +152,119 @@ export default function AssessmentsPage() {
                 if (typeof text !== 'string') {
                     throw new Error("File could not be read.");
                 }
-                const importedData = JSON.parse(text) as AssessmentTemplate & { questions?: Question[] };
+                const importedData = JSON.parse(text) as AssessmentTemplate & { questions?: Omit<Question, 'id'>[] };
                 
-                // Validate the imported data structure
                 if (!importedData.name || !importedData.role || !importedData.questions) {
                     throw new Error("Invalid JSON structure for assessment template.");
                 }
 
                 const { questions, ...templateData } = importedData;
                 
-                // Generate new IDs for the template and questions to avoid collisions
                 const newTemplateId = uuidv4();
-                const newQuestions = questions.map(q => ({ ...q, id: uuidv4() }));
+                const newQuestions = questions.map(q => ({ ...q, id: uuidv4(), tags: [templateData.role, q.skill] }));
                 const newQuestionIds = newQuestions.map(q => q.id);
 
                 const batch = writeBatch(firestore);
 
-                const finalTemplate = {
+                const finalTemplate: Omit<AssessmentTemplate, 'id'> = {
                     ...templateData,
-                    id: newTemplateId,
-                    name: `${templateData.name} (Imported)`, // Append to name to indicate it's an import
+                    name: `${templateData.name} (Imported)`,
                     questionIds: newQuestionIds,
                     questionCount: newQuestions.length,
                     createdAt: Date.now(),
+                    status: 'draft', // Always import as draft
                 };
+                delete (finalTemplate as any).id;
                 delete (finalTemplate as any).questions;
 
                 const templateRef = doc(firestore, 'assessments', newTemplateId);
                 batch.set(templateRef, finalTemplate);
                 
                 for (const question of newQuestions) {
-                    const questionRef = doc(firestore, 'questionBank', question.id);
-                    batch.set(questionRef, question);
+                    const { id, ...questionData } = question;
+                    const questionRef = doc(firestore, 'questionBank', id);
+                    batch.set(questionRef, questionData);
                 }
 
                 await batch.commit();
 
-                toast({ title: "Import Successful!", description: `"${finalTemplate.name}" has been added.` });
+                toast({ title: "Import Successful!", description: `"${finalTemplate.name}" has been added as a draft.` });
 
             } catch (error) {
                 console.error("Error importing assessment:", error);
                 toast({ title: "Import Failed", description: (error as Error).message, variant: "destructive" });
             } finally {
-                // Reset file input to allow re-uploading the same file
                 event.target.value = '';
             }
         };
         reader.readAsText(file);
     };
+
+    const handleClone = async (assessment: AssessmentTemplate) => {
+        if (!firestore) return;
+        toast({ title: "Cloning Assessment..." });
+
+        try {
+            const batch = writeBatch(firestore);
+
+            // 1. Fetch original questions
+            let originalQuestions: Question[] = [];
+            const questionIds = assessment.questionIds || [];
+            if (questionIds.length > 0) {
+                 for (let i = 0; i < questionIds.length; i += 30) {
+                    const chunk = questionIds.slice(i, i + 30);
+                    const qQuery = query(collection(firestore, 'questionBank'), where('__name__', 'in', chunk));
+                    const questionsSnap = await getDocs(qQuery);
+                    originalQuestions.push(...questionsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Question)));
+                }
+            }
+
+            // 2. Create new questions with new IDs
+            const newQuestions = originalQuestions.map(q => {
+                const { id, ...data } = q;
+                return { id: uuidv4(), ...data };
+            });
+            const newQuestionIds = newQuestions.map(q => q.id);
+
+            // 3. Add new questions to the batch
+            for (const question of newQuestions) {
+                 const { id, ...questionData } = question;
+                const questionRef = doc(firestore, 'questionBank', id);
+                batch.set(questionRef, questionData);
+            }
+
+            // 4. Create the new assessment template
+            const { id, ...originalTemplateData } = assessment;
+            const newTemplate: Omit<AssessmentTemplate, 'id'> = {
+                ...originalTemplateData,
+                name: `${assessment.name} (Copy)`,
+                status: 'draft',
+                createdAt: Date.now(),
+                questionIds: newQuestionIds,
+            };
+            const newTemplateRef = doc(collection(firestore, 'assessments'));
+            batch.set(newTemplateRef, newTemplate);
+
+            await batch.commit();
+            toast({ title: "Clone Successful!", description: `A copy of "${assessment.name}" has been created as a draft.` });
+        } catch (error) {
+             console.error("Error cloning assessment:", error);
+            toast({ title: "Clone Failed", description: (error as Error).message, variant: "destructive" });
+        }
+    };
+    
+    const handleToggleStatus = async (assessment: AssessmentTemplate) => {
+        if (!firestore) return;
+        const newStatus = assessment.status === 'active' ? 'draft' : 'active';
+        const assessmentRef = doc(firestore, 'assessments', assessment.id);
+        try {
+            await updateDoc(assessmentRef, { status: newStatus });
+            toast({ title: `Status Updated`, description: `"${assessment.name}" is now ${newStatus}.` });
+        } catch (error) {
+            toast({ title: "Update Failed", variant: "destructive" });
+        }
+    };
+
 
     const openDeleteDialog = (assessment: AssessmentTemplate) => {
         setSelectedForDelete(assessment);
@@ -286,14 +359,18 @@ export default function AssessmentsPage() {
                                                         <DropdownMenuItem onSelect={() => router.push(`/admin/assessments/${assessment.id}/edit`)}>
                                                             <Pencil className="mr-2 h-4 w-4" /> Edit
                                                         </DropdownMenuItem>
+                                                        <DropdownMenuItem onSelect={() => handleClone(assessment)}>
+                                                            <Copy className="mr-2 h-4 w-4" /> Clone
+                                                        </DropdownMenuItem>
                                                         <DropdownMenuItem onSelect={() => handleExport(assessment)}>
                                                             <Download className="mr-2 h-4 w-4" /> Export as JSON
                                                         </DropdownMenuItem>
-                                                        <DropdownMenuItem onSelect={() => toast({title: "Coming Soon!", description: "Cloning will be enabled in a future update."})}>
-                                                            <Copy className="mr-2 h-4 w-4" /> Clone
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuItem onSelect={() => toast({title: "Coming Soon!", description: "Deactivation will be enabled in a future update."})}>
-                                                            <PowerOff className="mr-2 h-4 w-4" /> Deactivate
+                                                        <DropdownMenuItem onSelect={() => handleToggleStatus(assessment)}>
+                                                            {assessment.status === 'active' ? (
+                                                                <><PowerOff className="mr-2 h-4 w-4" /> Deactivate</>
+                                                            ) : (
+                                                                <><Power className="mr-2 h-4 w-4" /> Activate</>
+                                                            )}
                                                         </DropdownMenuItem>
                                                         <DropdownMenuSeparator />
                                                         <DropdownMenuItem className="text-red-500" onSelect={() => openDeleteDialog(assessment)}>
@@ -316,7 +393,7 @@ export default function AssessmentsPage() {
                     <AlertDialogHeader>
                         <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            This action cannot be undone. This will permanently delete the assessment template "{selectedForDelete?.name}" and all of its questions.
+                            This action cannot be undone. This will permanently delete the assessment template "{selectedForDelete?.name}" and all of its associated questions from the question bank.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
