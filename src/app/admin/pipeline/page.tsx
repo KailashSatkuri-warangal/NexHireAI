@@ -31,6 +31,7 @@ import ReactSelect from 'react-select';
 import makeAnimated from 'react-select/animated';
 import { skillsOptions, experienceLevels } from '@/components/profile/profile-options';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 
 const animatedComponents = makeAnimated();
 type PipelineView = 'main' | 'ai_results' | 'manual_select';
@@ -480,3 +481,5 @@ const ManualSelectView = ({ candidates, selectedCandidates, handleSelectCandidat
         </CardFooter>
     </Card>
 );
+
+    
