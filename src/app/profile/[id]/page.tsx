@@ -73,12 +73,13 @@ export default function ProfilePage() {
             const historySnapshot = await getDocs(historyQuery);
             const historyData = await Promise.all(historySnapshot.docs.map(async (docSnapshot) => {
                 const attempt = { id: docSnapshot.id, ...docSnapshot.data() } as AssessmentAttempt;
+                 if (!attempt.roleId) return null; // Skip if roleId is missing
                 const roleDocRef = doc(firestore, 'roles', attempt.roleId);
                 const roleDoc = await getDoc(roleDocRef);
                 const roleName = roleDoc.exists() ? (roleDoc.data() as Role).name : 'Unknown Role';
                 return { ...attempt, roleName };
             }));
-            setAssessmentHistory(historyData);
+            setAssessmentHistory(historyData.filter(Boolean) as (AssessmentAttempt & { roleName?: string })[]);
         } else {
             // For non-candidates, ensure history is empty
             setAssessmentHistory([]);

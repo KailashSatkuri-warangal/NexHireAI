@@ -2,15 +2,15 @@
 'use server';
 /**
  * @fileOverview A flow to dynamically generate a 30-question practice assessment for a given role.
- * If questions for the role don't exist, it generates and saves them first.
+ * It first checks for questions in the central `questionBank`. If not found, it generates and saves them.
  */
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { getFirestore, doc, getDoc, collection, writeBatch, getDocs, query, limit } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, writeBatch, getDocs, query, where, limit } from 'firebase/firestore';
 import { initializeFirebaseForServer } from '@/firebase/server-init';
 import type { Question, Role } from '@/lib/types';
 import type { Assessment } from '@/lib/types';
-
+import { v4 as uuidv4 } from 'uuid';
 
 // Zod schema for a single generated question
 const GeneratedQuestionSchema = z.object({
@@ -46,21 +46,22 @@ const generateAssessmentFlow = ai.defineFlow(
     }
     const roleData = roleSnap.data() as Role;
     const { subSkills, name: roleName } = roleData;
-    const questionsCollectionRef = collection(firestore, 'roles', roleId, 'questions');
+    
+    const questionsCollectionRef = collection(firestore, 'questionBank');
 
-    // 2. Check if enough questions already exist for this role
-    const existingQuestionsQuery = query(questionsCollectionRef, limit(30));
+    // 2. Check if enough questions already exist for this role in the central bank
+    const existingQuestionsQuery = query(questionsCollectionRef, where('tags', 'array-contains', roleName), limit(30));
     const existingQuestionsSnap = await getDocs(existingQuestionsQuery);
     
     let allQuestions: Question[] = [];
 
     if (existingQuestionsSnap.size >= 30) {
-      console.log(`Found existing questions for role: ${roleName}`);
+      console.log(`Found existing questions for role: ${roleName} in questionBank.`);
       existingQuestionsSnap.forEach((doc) => {
         allQuestions.push({ id: doc.id, ...doc.data() } as Question);
       });
     } else {
-      console.log(`No questions found for role: ${roleName}. Generating 30 new questions...`);
+      console.log(`Not enough questions for role: ${roleName} in questionBank. Generating 30 new questions...`);
       
       const { output: generatedQuestions } = await ai.generate({
           prompt: `You are an expert technical interviewer creating a practice assessment for the "${roleName}" role.
@@ -92,17 +93,19 @@ const generateAssessmentFlow = ai.defineFlow(
 
       const batch = writeBatch(firestore);
       for (const question of generatedQuestions) {
-          const questionDocRef = doc(questionsCollectionRef);
-          const newQuestion: Omit<Question, 'id'> = {
+          const newId = uuidv4();
+          const questionDocRef = doc(questionsCollectionRef, newId);
+          const newQuestion: Question = {
+              id: newId,
               tags: [roleName, question.skill],
               ...question,
           };
           batch.set(questionDocRef, newQuestion);
-          allQuestions.push({ id: questionDocRef.id, ...newQuestion });
+          allQuestions.push(newQuestion);
       }
       
       await batch.commit();
-      console.log(`Successfully generated and saved ${generatedQuestions.length} questions for role: ${roleName}`);
+      console.log(`Successfully generated and saved ${generatedQuestions.length} questions for role: ${roleName} to questionBank.`);
     }
 
     // 3. Assemble and return the final assessment object

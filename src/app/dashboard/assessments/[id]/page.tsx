@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import type { AssessmentAttempt, Role, Question, UserResponse } from '@/lib/types';
 import { Loader2, ArrowLeft, Download, BarChart, BrainCircuit, CheckCircle, XCircle } from 'lucide-react';
@@ -39,7 +39,7 @@ export default function AssessmentResultPage() {
 
         const fetchAttempt = async () => {
             setIsFetching(true);
-            const pathUserId = (profileData?.role === 'admin' && userIdFromQuery) ? userIdFromQuery : user.id;
+            const pathUserId = (profileData?.role !== 'candidate' && userIdFromQuery) ? userIdFromQuery : user.id;
 
             try {
                 const attemptId = params.id as string;
@@ -57,10 +57,14 @@ export default function AssessmentResultPage() {
                 const roleDoc = await getDoc(roleDocRef);
                 const roleName = roleDoc.exists() ? (roleDoc.data() as Role).name : 'Unknown Role';
 
+                // Fetch questions from questionBank
+                const questionIds = attemptData.responses.map(res => res.questionId);
                 let questionsFromDb: Question[] = [];
-                const questionsCollectionRef = collection(firestore, `roles/${attemptData.roleId}/questions`);
-                const questionsSnapshot = await getDocs(questionsCollectionRef);
-                questionsFromDb = questionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Question));
+                if (questionIds.length > 0) {
+                    const qQuery = query(collection(firestore, 'questionBank'), where('__name__', 'in', questionIds));
+                    const questionsSnapshot = await getDocs(qQuery);
+                    questionsFromDb = questionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Question));
+                }
                 
                 const questionsWithAnswers = attemptData.responses.map(res => {
                     const question = questionsFromDb.find(q => q.id === res.questionId) || { id: res.questionId, questionText: 'Question not found', type: 'short', difficulty: 'Medium', timeLimit: 0, tags: [], skill: 'unknown' };

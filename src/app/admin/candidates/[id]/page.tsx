@@ -59,12 +59,13 @@ export default function AdminCandidateProfilePage() {
         const historySnapshot = await getDocs(historyQuery);
         const historyData = await Promise.all(historySnapshot.docs.map(async (docSnapshot) => {
             const attempt = { id: docSnapshot.id, ...docSnapshot.data() } as AssessmentAttempt;
+            if (!attempt.roleId) return null; // Skip if roleId is missing
             const roleDocRef = doc(firestore, 'roles', attempt.roleId);
             const roleDoc = await getDoc(roleDocRef);
             const roleName = roleDoc.exists() ? (roleDoc.data() as Role).name : 'Unknown Role';
             return { ...attempt, roleName };
         }));
-        setAssessmentHistory(historyData);
+        setAssessmentHistory(historyData.filter(Boolean) as (AssessmentAttempt & { roleName?: string })[]);
 
       } catch (error) {
         console.error("Error fetching profile and history:", error);
@@ -116,7 +117,6 @@ export default function AdminCandidateProfilePage() {
                 <div className="absolute w-full h-full backface-hidden" style={{ display: view === 'profile' ? 'block' : 'none' }}>
                     <ProfileCard 
                       profileData={profileData} 
-                      assessmentHistory={assessmentHistory}
                       onRunAnalysis={async () => toast({ title: "Read-only", description: "Analysis can only be run by the candidate."})}
                       onEdit={() => toast({ title: "Read-only", description: "Editing is disabled in admin view."})}
                       onViewInsights={hasAnalysis ? () => handleViewChange('analysis') : undefined}
