@@ -32,7 +32,7 @@ export default function ProfilePage() {
   const [view, setView] = useState<View>('profile');
   const [rotation, setRotation] = useState(0);
 
-  const profileId = params.id === 'me' ? currentUser?.id : params.id;
+  const profileId = params.id === 'me' || !params.id ? currentUser?.id : params.id;
   const isOwnProfile = profileId === currentUser?.id;
 
   useEffect(() => {
