@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { collection, getDocs, query, addDoc } from 'firebase/firestore';
+import { collection, getDocs, query, addDoc, writeBatch } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { generateAssessmentTemplate } from '@/ai/flows/generate-assessment-template-flow';
@@ -32,7 +32,6 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { QuestionPreview } from '@/components/assessment/QuestionPreview';
 import { QuestionEditor } from '@/components/assessment/QuestionEditor';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 
 const assessmentSchema = z.object({
@@ -49,7 +48,7 @@ const assessmentSchema = z.object({
 
 type AssessmentFormData = z.infer<typeof assessmentSchema>;
 
-type ViewState = 'config' | 'preview' | 'manual';
+type ViewState = 'config' | 'preview';
 
 export default function NewAssessmentPage() {
     const { firestore } = initializeFirebase();
@@ -61,15 +60,15 @@ export default function NewAssessmentPage() {
     const [isSaving, setIsSaving] = useState(false);
     
     const [view, setView] = useState<ViewState>('config');
-    const [activeTab, setActiveTab] = useState('generate');
 
     const [draftTemplate, setDraftTemplate] = useState<(AssessmentTemplate & { questions: Question[] }) | null>(null);
     const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
     const [isEditingNew, setIsEditingNew] = useState(false);
 
 
-    const { register, handleSubmit, control, watch, setValue, getValues, formState: { errors } } = useForm<AssessmentFormData>({
+    const { register, handleSubmit, control, watch, setValue, getValues, formState: { errors, isValid } } = useForm<AssessmentFormData>({
         resolver: zodResolver(assessmentSchema),
+        mode: 'onBlur',
         defaultValues: {
             questionCount: 30,
             duration: 60,
@@ -148,7 +147,7 @@ export default function NewAssessmentPage() {
             createdBy: 'Admin', // Replace with actual admin user
             createdAt: Date.now(),
         });
-        setView('manual');
+        setView('preview');
     }
 
     const handleAddNewQuestion = () => {
@@ -199,17 +198,30 @@ export default function NewAssessmentPage() {
     }
 
     const handleSave = async () => {
-        if (!draftTemplate) return;
+        if (!draftTemplate || !firestore) return;
         setIsSaving(true);
         try {
             const { questions, ...templateToSave } = draftTemplate;
             const finalTemplate = {
                 ...templateToSave,
                 questionIds: questions.map(q => q.id),
-                // This is where you would also save the questions to the questionBank
+                questionCount: questions.length, // Ensure count is accurate
+            };
+
+            const batch = writeBatch(firestore);
+
+            // 1. Add the main assessment template document
+            const assessmentRef = doc(firestore, 'assessments', finalTemplate.id);
+            batch.set(assessmentRef, finalTemplate);
+            
+            // 2. Add all questions to the questionBank collection
+            for (const question of questions) {
+                const questionRef = doc(firestore, 'questionBank', question.id);
+                batch.set(questionRef, question);
             }
             
-            await addDoc(collection(firestore, 'assessments'), finalTemplate);
+            await batch.commit();
+
             toast({ title: "Assessment Created!", description: `${draftTemplate.name} has been added to the templates.` });
             router.push('/admin/assessments');
         } catch(error) {
@@ -229,8 +241,7 @@ export default function NewAssessmentPage() {
         });
     };
     
-    const currentView = view === 'manual' ? 'manual' : 'config';
-    const currentTitle = view === 'manual' ? `Building "${draftTemplate?.name}"` : view === 'preview' ? `Previewing "${draftTemplate?.name}"` : 'Create New Assessment Template';
+    const currentTitle = view === 'preview' ? `Reviewing: "${draftTemplate?.name}"` : 'Create New Assessment Template';
 
     return (
         <div className="p-8">
@@ -241,7 +252,7 @@ export default function NewAssessmentPage() {
             <p className="text-muted-foreground mb-8">Define parameters and questions for a new assessment.</p>
             
              <AnimatePresence mode="wait">
-                {currentView === 'config' && (
+                {view === 'config' && (
                      <motion.div
                         key="config"
                         initial={{ opacity: 0, x: -50 }}
@@ -249,175 +260,146 @@ export default function NewAssessmentPage() {
                         exit={{ opacity: 0, x: 50 }}
                         transition={{ duration: 0.3, ease: 'easeInOut' }}
                     >
-                        <form onSubmit={handleSubmit(onGenerate)}>
+                        <form>
                             <Card className="max-w-4xl mx-auto bg-card/60 backdrop-blur-sm border-border/20 shadow-lg">
-                                <Tabs defaultValue="generate" value={activeTab} onValueChange={setActiveTab}>
-                                    <TabsList className="grid w-full grid-cols-2">
-                                        <TabsTrigger value="generate">Generate with AI</TabsTrigger>
-                                        <TabsTrigger value="manual">Create Manually</TabsTrigger>
-                                    </TabsList>
-                                    <TabsContent value="generate">
-                                        <CardHeader>
-                                            <CardTitle>1. Configure AI Generation</CardTitle>
-                                            <CardDescription>Set the high-level details for your assessment.</CardDescription>
-                                        </CardHeader>
-                                        <CardContent className="space-y-6">
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                <div className="space-y-2">
-                                                    <Label htmlFor="name">Assessment Name</Label>
-                                                    <Input id="name" {...register('name')} placeholder="e.g., Senior Frontend Developer Screening" />
-                                                    {errors.name && <p className="text-red-500 text-sm">{errors.name.message}</p>}
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <Label htmlFor="roleId">Target Role</Label>
-                                                    <Controller
-                                                        name="roleId"
-                                                        control={control}
-                                                        render={({ field }) => (
-                                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                                <SelectTrigger disabled={isLoadingRoles}>
-                                                                    <SelectValue placeholder="Select a role..." />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    {isLoadingRoles ? (
-                                                                        <SelectItem value="loading" disabled>Loading roles...</SelectItem>
-                                                                    ) : (
-                                                                        roles.map(role => <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>)
-                                                                    )}
-                                                                </SelectContent>
-                                                            </Select>
-                                                        )}
-                                                    />
-                                                    {errors.roleId && <p className="text-red-500 text-sm">{errors.roleId.message}</p>}
-                                                </div>
-                                            </div>
+                                <CardHeader>
+                                    <CardTitle>1. Configure Your Assessment</CardTitle>
+                                    <CardDescription>Set the high-level details. You can generate questions with AI or add them manually in the next step.</CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="name">Assessment Name</Label>
+                                            <Input id="name" {...register('name')} placeholder="e.g., Senior Frontend Developer Screening" />
+                                            {errors.name && <p className="text-red-500 text-sm">{errors.name.message}</p>}
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="roleId">Target Role</Label>
+                                            <Controller
+                                                name="roleId"
+                                                control={control}
+                                                render={({ field }) => (
+                                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                        <SelectTrigger disabled={isLoadingRoles}>
+                                                            <SelectValue placeholder="Select a role..." />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {isLoadingRoles ? (
+                                                                <SelectItem value="loading" disabled>Loading roles...</SelectItem>
+                                                            ) : (
+                                                                roles.map(role => <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>)
+                                                            )}
+                                                        </SelectContent>
+                                                    </Select>
+                                                )}
+                                            />
+                                            {errors.roleId && <p className="text-red-500 text-sm">{errors.roleId.message}</p>}
+                                        </div>
+                                    </div>
 
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
-                                                <div className="space-y-2">
-                                                    <Label htmlFor="questionCount">Number of Questions ({questionCount})</Label>
-                                                    <Controller name="questionCount" control={control} render={({ field: { onChange, value } }) => (
-                                                        <Slider onValueChange={(v) => onChange(v[0])} value={[value]} min={5} max={50} step={1} />
-                                                    )}/>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="questionCount">Number of Questions (for AI generation)</Label>
+                                            <Controller name="questionCount" control={control} render={({ field: { onChange, value } }) => (
+                                                <Slider onValueChange={(v) => onChange(v[0])} value={[value]} min={5} max={50} step={1} />
+                                            )}/>
+                                            <p className="text-xs text-muted-foreground text-center">{questionCount} questions</p>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="duration">Duration (minutes)</Label>
+                                            <Input id="duration" type="number" {...register('duration', { valueAsNumber: true })} />
+                                            {errors.duration && <p className="text-red-500 text-sm">{errors.duration.message}</p>}
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="space-y-2">
+                                        <Label>Difficulty Mix (for AI generation)</Label>
+                                        <Controller name="difficultyMix" control={control} render={({ field }) => (
+                                            <>
+                                                <Slider
+                                                    value={[field.value.easy, field.value.easy + field.value.medium]}
+                                                    onValueChange={handleSliderChange}
+                                                    min={0} max={100} step={5}
+                                                    className="mt-4"
+                                                />
+                                                <div className="flex justify-between text-sm text-muted-foreground mt-2">
+                                                    <span style={{ color: '#22c55e' }}>Easy: {difficultyMix.easy}%</span>
+                                                    <span style={{ color: '#f97316' }}>Medium: {difficultyMix.medium}%</span>
+                                                    <span style={{ color: '#ef4444' }}>Hard: {difficultyMix.hard}%</span>
                                                 </div>
-                                                <div className="space-y-2">
-                                                    <Label htmlFor="duration">Duration (minutes)</Label>
-                                                    <Controller name="duration" control={control} render={({ field: { onChange, value } }) => (
-                                                        <Input type="number" value={value} onChange={e => onChange(parseInt(e.target.value))} min={10} max={180} step={5} />
-                                                    )}/>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        Avg. time per question: {questionCount > 0 && duration > 0 ? (duration * 60 / questionCount).toFixed(0) : 'N/A'} seconds
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            
-                                            <div className="space-y-2">
-                                                <Label>Difficulty Mix</Label>
-                                                <Controller name="difficultyMix" control={control} render={({ field }) => (
-                                                    <>
-                                                        <Slider
-                                                            value={[field.value.easy, field.value.easy + field.value.medium]}
-                                                            onValueChange={handleSliderChange}
-                                                            min={0} max={100} step={5}
-                                                            className="mt-4"
-                                                        />
-                                                        <div className="flex justify-between text-sm text-muted-foreground mt-2">
-                                                            <span style={{ color: '#22c55e' }}>Easy: {difficultyMix.easy}%</span>
-                                                            <span style={{ color: '#f97316' }}>Medium: {difficultyMix.medium}%</span>
-                                                            <span style={{ color: '#ef4444' }}>Hard: {difficultyMix.hard}%</span>
-                                                        </div>
-                                                    </>
-                                                )}/>
-                                            </div>
+                                            </>
+                                        )}/>
+                                    </div>
 
-                                        </CardContent>
-                                        <CardFooter>
-                                            <Button type="submit" disabled={isGenerating}>
-                                                {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                                <Wand2 className="mr-2 h-4 w-4" />
-                                                {isGenerating ? 'Generating...' : 'Generate Questions'}
-                                            </Button>
-                                        </CardFooter>
-                                    </TabsContent>
-                                     <TabsContent value="manual">
-                                         <CardHeader>
-                                            <CardTitle>1. Configure Manual Creation</CardTitle>
-                                            <CardDescription>Set the details for your assessment and then add questions manually.</CardDescription>
-                                        </CardHeader>
-                                         <CardContent className="space-y-6">
-                                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                <div className="space-y-2">
-                                                    <Label htmlFor="name_manual">Assessment Name</Label>
-                                                    <Input id="name_manual" {...register('name')} placeholder="e.g., Senior Frontend Developer Screening" />
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <Label htmlFor="roleId_manual">Target Role</Label>
-                                                     <Controller
-                                                        name="roleId"
-                                                        control={control}
-                                                        render={({ field }) => (
-                                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                                <SelectTrigger disabled={isLoadingRoles}>
-                                                                    <SelectValue placeholder="Select a role..." />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    {isLoadingRoles ? (
-                                                                        <SelectItem value="loading" disabled>Loading roles...</SelectItem>
-                                                                    ) : (
-                                                                        roles.map(role => <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>)
-                                                                    )}
-                                                                </SelectContent>
-                                                            </Select>
-                                                        )}
-                                                    />
-                                                </div>
-                                            </div>
-                                             <div className="space-y-2">
-                                                <Label htmlFor="duration_manual">Duration (minutes)</Label>
-                                                <Input id="duration_manual" type="number" {...register('duration', { valueAsNumber: true })} />
-                                            </div>
-                                         </CardContent>
-                                        <CardFooter>
-                                            <Button type="button" onClick={handleProceedToManual}>
-                                                <Pencil className="mr-2 h-4 w-4" />
-                                                Proceed to Add Questions
-                                            </Button>
-                                        </CardFooter>
-                                    </TabsContent>
-                                </Tabs>
+                                </CardContent>
+                                <CardFooter className="flex justify-between">
+                                     <Button type="button" variant="secondary" onClick={handleProceedToManual} disabled={!isValid}>
+                                        <Pencil className="mr-2 h-4 w-4" />
+                                        Create Manually
+                                    </Button>
+                                    <Button type="button" onClick={handleSubmit(onGenerate)} disabled={isGenerating || !isValid}>
+                                        {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                        <Wand2 className="mr-2 h-4 w-4" />
+                                        {isGenerating ? 'Generating...' : 'Generate with AI'}
+                                    </Button>
+                                </CardFooter>
                             </Card>
                         </form>
                     </motion.div>
                 )}
                 
-                 {currentView === 'manual' && draftTemplate && (
+                 {view === 'preview' && draftTemplate && (
                      <motion.div
-                        key="manual-view"
+                        key="preview"
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ duration: 0.3, ease: 'easeInOut' }}
                      >
                         <Card className="bg-card/60 backdrop-blur-sm border-border/20 shadow-lg">
                             <CardHeader>
-                                <CardTitle>Manually Add Questions</CardTitle>
+                                <CardTitle>2. Review & Edit Questions</CardTitle>
                                 <CardDescription>
-                                    Add, edit, and reorder questions for your assessment. You have added {draftTemplate.questions.length} questions so far.
+                                    Review, edit, add, or remove questions below. You have added {draftTemplate.questions.length} questions so far.
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4 max-h-[60vh] overflow-y-auto p-4 border rounded-md">
-                                 {draftTemplate.questions.map((q, i) => (
-                                    <div key={q.id} className="flex items-start gap-2">
-                                        <QuestionPreview 
-                                            question={q} 
-                                            index={i} 
-                                            onEdit={() => setEditingQuestion(q)} 
-                                        />
-                                        <Button variant="destructive" size="icon" className="mt-1" onClick={() => handleDeleteQuestion(q.id)}>
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                ))}
-                                <Button variant="outline" className="w-full border-dashed" onClick={handleAddNewQuestion}>
-                                    <PlusCircle className="mr-2 h-4 w-4" /> Add Question
+                                 {draftTemplate.questions.length > 0 ? (
+                                    draftTemplate.questions.map((q, i) => (
+                                        <div key={q.id} className="flex items-start gap-2">
+                                            <QuestionPreview 
+                                                question={q} 
+                                                index={i} 
+                                                onEdit={() => setEditingQuestion(q)} 
+                                            />
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button variant="destructive" size="icon" className="mt-1 flex-shrink-0">
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            This will remove the question from this draft. This action cannot be undone.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleDeleteQuestion(q.id)}>
+                                                            Confirm
+                                                        </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </div>
+                                    ))
+                                 ) : (
+                                    <div className="text-center text-muted-foreground p-8">No questions added yet.</div>
+                                 )}
+
+                                <Button variant="outline" className="w-full border-dashed mt-4" onClick={handleAddNewQuestion}>
+                                    <PlusCircle className="mr-2 h-4 w-4" /> Add New Question
                                 </Button>
                             </CardContent>
                             <CardFooter className="flex justify-between items-center mt-4">
@@ -434,67 +416,6 @@ export default function NewAssessmentPage() {
                                             <AlertDialogDescription>
                                                 This will create a new assessment template with {draftTemplate.questions.length} questions.
                                                 Are you sure you want to save?
-                                            </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={handleSave} disabled={isSaving}>
-                                                 {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                                 Confirm & Save
-                                            </AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
-                            </CardFooter>
-                        </Card>
-                    </motion.div>
-                )}
-
-
-                 {view === 'preview' && draftTemplate && (
-                     <motion.div
-                        key="preview"
-                        initial={{ opacity: 0, x: 50 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -50 }}
-                        transition={{ duration: 0.3, ease: 'easeInOut' }}
-                    >
-                         <Card className="bg-card/60 backdrop-blur-sm border-border/20 shadow-lg">
-                            <CardHeader>
-                                <CardTitle>2. Review & Save</CardTitle>
-                                <CardDescription>
-                                    The AI has generated {draftTemplate.questions.length} questions for the assessment "{draftTemplate.name}".
-                                    Review and edit them below before saving the template.
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-4 max-h-[60vh] overflow-y-auto p-4 border rounded-md">
-                                {draftTemplate.questions.map((q, i) => (
-                                     <div key={q.id} className="flex items-start gap-2">
-                                        <QuestionPreview 
-                                            question={q} 
-                                            index={i} 
-                                            onEdit={() => setEditingQuestion(q)} 
-                                        />
-                                        <Button variant="destructive" size="icon" className="mt-1" onClick={() => handleDeleteQuestion(q.id)}>
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                ))}
-                            </CardContent>
-                            <CardFooter className="flex justify-between items-center mt-4">
-                                <Button variant="ghost" onClick={() => setView('config')}>Back to Config</Button>
-                                 <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                         <Button disabled={isSaving}>
-                                            <Save className="mr-2 h-4 w-4" /> Save Template
-                                        </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>Confirm Save</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                                This will create a new assessment template available to all candidates.
-                                                Are you sure you want to save this template?
                                             </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
