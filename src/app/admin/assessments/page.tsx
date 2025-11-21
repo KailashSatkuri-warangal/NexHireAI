@@ -1,18 +1,28 @@
-
 'use client';
 import { useState, useEffect } from 'react';
-import { collection, getDocs, query, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, query, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, NotebookPen, CheckCircle, BarChart, Clock, Loader2, FileJson, BrainCircuit } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { MoreHorizontal, PlusCircle, NotebookPen, CheckCircle, BarChart, Clock, Loader2, FileJson, BrainCircuit, Trash2, Pencil, Copy, PowerOff } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { AssessmentTemplate } from '@/lib/types';
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useToast } from '@/hooks/use-toast';
 
 const containerVariants = {
     hidden: { opacity: 1 },
@@ -27,9 +37,12 @@ const itemVariants = {
 export default function AssessmentsPage() {
     const { firestore } = initializeFirebase();
     const router = useRouter();
+    const { toast } = useToast();
     const [assessments, setAssessments] = useState<AssessmentTemplate[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [stats, setStats] = useState({ total: 0, active: 0, avgTime: 0 });
+    const [dialogOpen, setDialogOpen] = useState(false);
+    const [selectedForDelete, setSelectedForDelete] = useState<AssessmentTemplate | null>(null);
 
     useEffect(() => {
         if (!firestore) return;
@@ -56,6 +69,26 @@ export default function AssessmentsPage() {
 
         return () => unsubscribe();
     }, [firestore]);
+
+    const handleDelete = async () => {
+        if (!selectedForDelete || !firestore) return;
+        
+        try {
+            await deleteDoc(doc(firestore, 'assessments', selectedForDelete.id));
+            toast({ title: "Assessment Deleted", description: `"${selectedForDelete.name}" has been removed.` });
+        } catch (error) {
+            toast({ title: "Error", description: "Could not delete the assessment.", variant: "destructive" });
+            console.error("Error deleting assessment:", error);
+        } finally {
+            setDialogOpen(false);
+            setSelectedForDelete(null);
+        }
+    };
+
+    const openDeleteDialog = (assessment: AssessmentTemplate) => {
+        setSelectedForDelete(assessment);
+        setDialogOpen(true);
+    }
 
     return (
         <div className="p-8">
@@ -137,10 +170,19 @@ export default function AssessmentsPage() {
                                                         <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
                                                     </DropdownMenuTrigger>
                                                     <DropdownMenuContent>
-                                                        <DropdownMenuItem>Edit</DropdownMenuItem>
-                                                        <DropdownMenuItem>Clone</DropdownMenuItem>
-                                                        <DropdownMenuItem>Deactivate</DropdownMenuItem>
-                                                        <DropdownMenuItem className="text-red-500">Delete</DropdownMenuItem>
+                                                        <DropdownMenuItem onSelect={() => toast({title: "Coming Soon!", description: "Editing will be enabled in a future update."})}>
+                                                            <Pencil className="mr-2 h-4 w-4" /> Edit
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onSelect={() => toast({title: "Coming Soon!", description: "Cloning will be enabled in a future update."})}>
+                                                            <Copy className="mr-2 h-4 w-4" /> Clone
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onSelect={() => toast({title: "Coming Soon!", description: "Deactivation will be enabled in a future update."})}>
+                                                            <PowerOff className="mr-2 h-4 w-4" /> Deactivate
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem className="text-red-500" onSelect={() => openDeleteDialog(assessment)}>
+                                                            <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                                        </DropdownMenuItem>
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
                                             </TableCell>
@@ -152,6 +194,23 @@ export default function AssessmentsPage() {
                     )}
                 </CardContent>
             </Card>
+
+             <AlertDialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete the assessment template "{selectedForDelete?.name}".
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
+                            Yes, delete it
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

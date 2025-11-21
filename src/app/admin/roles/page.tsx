@@ -1,13 +1,12 @@
-
 'use client';
 import { useState, useEffect } from 'react';
 import { collection, getDocs, query, onSnapshot } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import type { Role } from '@/lib/types';
-import { Loader2, PlusCircle, ShieldCheck } from 'lucide-react';
+import { Loader2, PlusCircle, ShieldCheck, ArrowRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useRouter } from 'next/navigation';
 
@@ -72,7 +71,7 @@ export default function RolesPage() {
                 >
                     {roles.map(role => (
                         <motion.div key={role.id} variants={itemVariants}>
-                             <Card className="h-full flex flex-col bg-card/60 backdrop-blur-sm border-border/20 shadow-lg hover:border-primary/60 hover:-translate-y-1 transition-transform">
+                             <Card className="h-full flex flex-col bg-card/60 backdrop-blur-sm border-border/20 shadow-lg hover:border-primary/60 hover:-translate-y-1 transition-transform group">
                                 <CardHeader>
                                     <CardTitle>{role.name}</CardTitle>
                                     <CardDescription>{role.description}</CardDescription>
@@ -85,6 +84,11 @@ export default function RolesPage() {
                                         ))}
                                     </div>
                                 </CardContent>
+                                <CardFooter>
+                                    <Button variant="ghost" className="w-full justify-center" onClick={() => router.push(`/admin/roles/${role.id}/edit`)}>
+                                        Edit Role <ArrowRight className="ml-2 h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </Button>
+                                </CardFooter>
                             </Card>
                         </motion.div>
                     ))}
