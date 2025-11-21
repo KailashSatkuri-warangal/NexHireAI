@@ -1,6 +1,6 @@
 
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import type { User } from '@/lib/types';
@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, Eye, ListPlus } from 'lucide-react';
+import { Loader2, Eye, ListPlus, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -27,6 +27,12 @@ import {
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
+import { cn } from '@/lib/utils';
+import Select from 'react-select';
+import makeAnimated from 'react-select/animated';
+import { skillsOptions, experienceLevels } from '@/components/profile/profile-options';
+
+const animatedComponents = makeAnimated();
 
 export default function CandidatesPage() {
     const { firestore } = initializeFirebase();
@@ -37,6 +43,11 @@ export default function CandidatesPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set());
     const [shortlistName, setShortlistName] = useState('');
+    
+    // Filtering state
+    const [nameFilter, setNameFilter] = useState('');
+    const [skillFilter, setSkillFilter] = useState<string[]>([]);
+    const [experienceFilter, setExperienceFilter] = useState<string[]>([]);
 
     useEffect(() => {
         if (!firestore) return;
@@ -57,6 +68,15 @@ export default function CandidatesPage() {
 
         fetchCandidates();
     }, [firestore]);
+
+    const filteredCandidates = useMemo(() => {
+        return candidates.filter(candidate => {
+            const nameMatch = candidate.name.toLowerCase().includes(nameFilter.toLowerCase()) || candidate.email.toLowerCase().includes(nameFilter.toLowerCase());
+            const skillMatch = skillFilter.length === 0 || skillFilter.every(skill => candidate.candidateSpecific?.skills?.includes(skill));
+            const expMatch = experienceFilter.length === 0 || experienceFilter.includes(candidate.candidateSpecific?.experienceLevel || '');
+            return nameMatch && skillMatch && expMatch;
+        });
+    }, [candidates, nameFilter, skillFilter, experienceFilter]);
 
     const handleSelectCandidate = (candidateId: string) => {
         setSelectedCandidates(prev => {
@@ -110,6 +130,19 @@ export default function CandidatesPage() {
     };
 
     const isAnyCandidateSelected = selectedCandidates.size > 0;
+    
+    const selectStyles = {
+        control: (styles: any) => ({ ...styles, backgroundColor: 'var(--background)', border: '1px solid hsl(var(--border))' }),
+        menu: (styles: any) => ({ ...styles, backgroundColor: 'hsl(var(--card))', zIndex: 50 }),
+        option: (styles: any, { isFocused, isSelected }: any) => ({
+        ...styles,
+        backgroundColor: isSelected ? 'hsl(var(--primary))' : isFocused ? 'hsl(var(--accent))' : 'transparent',
+        color: isSelected ? 'hsl(var(--primary-foreground))' : 'hsl(var(--foreground))',
+        }),
+        multiValue: (styles: any) => ({...styles, backgroundColor: 'hsl(var(--secondary))' }),
+        multiValueLabel: (styles: any) => ({...styles, color: 'hsl(var(--secondary-foreground))' }),
+        multiValueRemove: (styles: any) => ({...styles, ':hover': { backgroundColor: 'hsl(var(--destructive))', color: 'hsl(var(--destructive-foreground))' } }),
+    };
 
     return (
         <div className="p-8">
@@ -148,17 +181,44 @@ export default function CandidatesPage() {
                 <CardHeader>
                     <CardTitle>All Candidates</CardTitle>
                     <CardDescription>
-                        Select candidates to create a shortlist for your recruitment pipeline.
+                        Filter, search, and select candidates to create a shortlist for your recruitment pipeline.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 p-4 border rounded-lg bg-background/50">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input 
+                                placeholder="Filter by name or email..."
+                                value={nameFilter}
+                                onChange={(e) => setNameFilter(e.target.value)}
+                                className="pl-10"
+                            />
+                        </div>
+                        <Select
+                            isMulti
+                            options={skillsOptions}
+                            components={animatedComponents}
+                            styles={selectStyles}
+                            placeholder="Filter by skills..."
+                            onChange={(val: any) => setSkillFilter(val.map((c: any) => c.value))}
+                        />
+                         <Select
+                            isMulti
+                            options={experienceLevels}
+                            components={animatedComponents}
+                            styles={selectStyles}
+                            placeholder="Filter by experience..."
+                            onChange={(val: any) => setExperienceFilter(val.map((c: any) => c.value))}
+                        />
+                    </div>
                     {isLoading ? (
                         <div className="flex items-center justify-center text-center text-muted-foreground h-64">
                             <Loader2 className="h-8 w-8 animate-spin" />
                         </div>
-                    ) : candidates.length === 0 ? (
+                    ) : filteredCandidates.length === 0 ? (
                          <div className="flex flex-col items-center justify-center text-center text-muted-foreground h-64">
-                            <p>No candidates found in the database.</p>
+                            <p>No candidates found matching your criteria.</p>
                         </div>
                     ) : (
                         <motion.div
@@ -178,7 +238,7 @@ export default function CandidatesPage() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {candidates.map(candidate => (
+                                    {filteredCandidates.map(candidate => (
                                         <motion.tr
                                             key={candidate.id}
                                             variants={itemVariants}
