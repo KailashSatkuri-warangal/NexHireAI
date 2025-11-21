@@ -1,5 +1,6 @@
 
 
+
 export type RoleType = 'candidate' | 'recruiter' | 'admin';
 
 export interface Role {
@@ -112,7 +113,7 @@ export interface User {
   createdAt?: {
     seconds: number;
     nanoseconds: number;
-  };
+  } | number; // Allow number for client-side creation
   candidateSpecific?: CandidateSpecificProfile;
   recruiterSpecific?: RecruiterSpecificProfile;
   analysis?: {
@@ -204,3 +205,5 @@ export interface Notification {
     isRead: boolean;
     createdAt: number;
 }
+
+    

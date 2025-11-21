@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -9,7 +10,8 @@ import { useEffect, useState } from 'react';
 import { collection, getDocs, query, where, orderBy, doc, getDoc, collectionGroup, limit } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import type { User as UserType, Role, AssessmentTemplate, AssessmentAttempt } from '@/lib/types';
-import { format, subMonths, startOfMonth } from 'date-fns';
+import { format, subMonths, startOfMonth, formatDistanceToNow } from 'date-fns';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const containerVariants = {
     hidden: { opacity: 1 },
@@ -31,6 +33,8 @@ type ActivityItem = {
     subtext: string;
     timestamp: number;
     icon: React.ReactNode;
+    avatarUrl?: string;
+    avatarFallback: string;
 }
 
 export default function AdminHomePage() {
@@ -39,6 +43,7 @@ export default function AdminHomePage() {
   
   const [stats, setStats] = useState({ candidates: 0, activeAssessments: 0, roles: 0 });
   const [chartData, setChartData] = useState<{name: string, Candidates: number}[]>([]);
+  const [activityFeed, setActivityFeed] = useState<ActivityItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -47,18 +52,14 @@ export default function AdminHomePage() {
     const fetchData = async () => {
         setIsLoading(true);
         try {
-            // 1. Fetch all collections directly
+            // --- STATS AND CHART ---
             const usersQuery = query(collection(firestore, 'users'), where('role', '==', 'candidate'));
             const usersSnapshot = await getDocs(usersQuery);
             const rolesSnapshot = await getDocs(collection(firestore, 'roles'));
             const assessmentsSnapshot = await getDocs(collection(firestore, 'assessments'));
 
-            // 2. Process data on the client side
             const candidateCount = usersSnapshot.size;
-            
-            const allAssessments = assessmentsSnapshot.docs.map(doc => doc.data() as AssessmentTemplate);
-            const activeAssessmentsCount = allAssessments.filter(a => a.status === 'active').length;
-
+            const activeAssessmentsCount = assessmentsSnapshot.docs.filter(doc => (doc.data() as AssessmentTemplate).status === 'active').length;
             const totalRoles = rolesSnapshot.size;
 
             setStats({
@@ -67,33 +68,72 @@ export default function AdminHomePage() {
                 roles: totalRoles
             });
 
-            // 3. Prepare Chart Data for the last 6 months
             const monthlyData: Record<string, { Candidates: number }> = {};
             const now = new Date();
-            
             for (let i = 5; i >= 0; i--) {
-                const monthDate = subMonths(now, i);
-                const month = format(monthDate, 'MMM');
-                monthlyData[month] = { Candidates: 0 };
+                monthlyData[format(subMonths(now, i), 'MMM')] = { Candidates: 0 };
             }
-
-            const sixMonthsAgo = startOfMonth(subMonths(now, 5));
 
             usersSnapshot.docs.forEach(doc => {
                  const c = doc.data() as UserType;
-                 // Firestore timestamp can be either a Date object or a Firestore Timestamp object
-                if (c.createdAt && typeof c.createdAt === 'object' && 'seconds' in c.createdAt) {
+                 if (c.createdAt && typeof c.createdAt === 'object' && 'seconds' in c.createdAt) {
                      const joinDate = new Date((c.createdAt as any).seconds * 1000);
-                     if (joinDate >= sixMonthsAgo) {
+                     if (joinDate >= startOfMonth(subMonths(now, 5))) {
                         const month = format(joinDate, 'MMM');
-                        if (monthlyData[month]) {
-                           monthlyData[month].Candidates++;
-                       }
+                        if (monthlyData[month]) monthlyData[month].Candidates++;
                      }
-                }
+                 }
             });
-
             setChartData(Object.entries(monthlyData).map(([name, values]) => ({ name, ...values })));
+            
+            // --- ACTIVITY FEED ---
+            const newCandidatesQuery = query(collection(firestore, 'users'), where('role', '==', 'candidate'), orderBy('createdAt', 'desc'), limit(5));
+            const completedAssessmentsQuery = query(collectionGroup(firestore, 'assessments'), orderBy('submittedAt', 'desc'), limit(5));
+
+            const [newCandidatesSnap, completedAssessmentsSnap] = await Promise.all([
+                getDocs(newCandidatesQuery),
+                getDocs(completedAssessmentsQuery)
+            ]);
+
+            const candidateActivities: ActivityItem[] = newCandidatesSnap.docs
+                .filter(doc => doc.data().createdAt)
+                .map(doc => {
+                    const candidate = doc.data() as UserType;
+                    return {
+                        type: 'new_candidate',
+                        text: `${candidate.name} signed up.`,
+                        subtext: 'New candidate joined the talent pool.',
+                        timestamp: (candidate.createdAt as any).seconds * 1000,
+                        icon: <UserCheck className="h-5 w-5" />,
+                        avatarUrl: candidate.avatarUrl,
+                        avatarFallback: candidate.name.charAt(0)
+                    };
+                });
+            
+            const assessmentActivities: ActivityItem[] = await Promise.all(completedAssessmentsSnap.docs
+                .filter(doc => doc.data().submittedAt)
+                .map(async (doc) => {
+                    const attempt = doc.data() as AssessmentAttempt;
+                    const userDoc = await getDoc(collection(firestore, 'users').doc(attempt.userId));
+                    const roleDoc = await getDoc(collection(firestore, 'roles').doc(attempt.roleId));
+                    const userData = userDoc.data() as UserType;
+                    const roleName = roleDoc.exists() ? (roleDoc.data() as Role).name : 'an assessment';
+                    return {
+                        type: 'assessment_completed',
+                        text: `${userData.name} completed the ${roleName} assessment.`,
+                        subtext: `Scored ${Math.round(attempt.finalScore!)}%`,
+                        timestamp: attempt.submittedAt!,
+                        icon: <NotebookPen className="h-5 w-5" />,
+                        avatarUrl: userData.avatarUrl,
+                        avatarFallback: userData.name.charAt(0)
+                    };
+                }));
+
+            const combinedActivities = [...candidateActivities, ...assessmentActivities]
+                .sort((a, b) => b.timestamp - a.timestamp)
+                .slice(0, 5);
+
+            setActivityFeed(combinedActivities);
 
         } catch (error) {
             console.error("Failed to fetch admin dashboard data:", error);
@@ -208,9 +248,25 @@ export default function AdminHomePage() {
                     <CardDescription>Latest platform events.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  
-                    <p className="text-sm text-center text-muted-foreground py-8">Recent activity feed is temporarily disabled.</p>
-                  
+                  {activityFeed.length > 0 ? (
+                      activityFeed.map((item, index) => (
+                          <div key={index} className="flex items-center gap-4">
+                                <Avatar className="h-9 w-9">
+                                    <AvatarImage src={item.avatarUrl} />
+                                    <AvatarFallback>{item.avatarFallback}</AvatarFallback>
+                                </Avatar>
+                                <div className="grid gap-1">
+                                    <p className="text-sm font-medium leading-none">{item.text}</p>
+                                    <p className="text-sm text-muted-foreground">{item.subtext}</p>
+                                </div>
+                                <div className="ml-auto text-xs text-muted-foreground">
+                                    {formatDistanceToNow(new Date(item.timestamp), { addSuffix: true })}
+                                </div>
+                          </div>
+                      ))
+                  ) : (
+                    <p className="text-sm text-center text-muted-foreground py-8">No recent activity.</p>
+                  )}
                 </CardContent>
             </Card>
         </motion.div>
@@ -218,3 +274,5 @@ export default function AdminHomePage() {
     </div>
   );
 }
+
+    
