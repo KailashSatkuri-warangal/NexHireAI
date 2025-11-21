@@ -71,7 +71,7 @@ export interface AssessmentTemplate {
     createdAt: number;
 }
 
-export type CandidateStatus = 'Shortlisted' | 'Under Review' | 'Rejected' | 'Hired';
+export type CandidateStatus = 'Shortlisted' | 'Under Review' | 'Hired' | 'Rejected';
 
 export interface AssessmentAttempt {
     id: string;
