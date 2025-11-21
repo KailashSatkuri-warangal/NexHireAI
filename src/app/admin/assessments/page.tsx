@@ -1,7 +1,7 @@
 
 'use client';
 import { useState, useEffect } from 'react';
-import { collection, getDocs, query, onSnapshot, deleteDoc, doc, writeBatch, where } from 'firebase/firestore';
+import { collection, getDocs, query, onSnapshot, deleteDoc, doc, writeBatch, where, addDoc } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -76,8 +76,23 @@ export default function AssessmentsPage() {
         if (!selectedForDelete || !firestore) return;
         
         try {
-            await deleteDoc(doc(firestore, 'assessments', selectedForDelete.id));
-            toast({ title: "Assessment Deleted", description: `"${selectedForDelete.name}" has been removed.` });
+            const batch = writeBatch(firestore);
+
+            // 1. Delete the main assessment template
+            const assessmentRef = doc(firestore, 'assessments', selectedForDelete.id);
+            batch.delete(assessmentRef);
+
+            // 2. Delete all associated questions from the question bank
+            if (selectedForDelete.questionIds && selectedForDelete.questionIds.length > 0) {
+                for (const questionId of selectedForDelete.questionIds) {
+                    const questionRef = doc(firestore, 'questionBank', questionId);
+                    batch.delete(questionRef);
+                }
+            }
+
+            await batch.commit();
+            toast({ title: "Assessment Deleted", description: `"${selectedForDelete.name}" and its questions have been removed.` });
+
         } catch (error) {
             toast({ title: "Error", description: "Could not delete the assessment.", variant: "destructive" });
             console.error("Error deleting assessment:", error);
@@ -120,7 +135,7 @@ export default function AssessmentsPage() {
     
     const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
-        if (!file) return;
+        if (!file || !firestore) return;
 
         const reader = new FileReader();
         reader.onload = async (e) => {
@@ -301,7 +316,7 @@ export default function AssessmentsPage() {
                     <AlertDialogHeader>
                         <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            This action cannot be undone. This will permanently delete the assessment template "{selectedForDelete?.name}".
+                            This action cannot be undone. This will permanently delete the assessment template "{selectedForDelete?.name}" and all of its questions.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
