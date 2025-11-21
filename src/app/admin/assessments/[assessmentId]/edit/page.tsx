@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { doc, getDoc, updateDoc, collection, getDocs, query } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, getDocs, query, writeBatch, where } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 
@@ -15,13 +15,25 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
-import { Loader2, ArrowLeft, Save } from 'lucide-react';
-import type { Role, AssessmentTemplate } from '@/lib/types';
+import { Loader2, ArrowLeft, Save, Trash2, Pencil } from 'lucide-react';
+import type { Role, AssessmentTemplate, Question } from '@/lib/types';
+import { QuestionPreview } from '@/components/assessment/QuestionPreview';
+import { QuestionEditor } from '@/components/assessment/QuestionEditor';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const assessmentSchema = z.object({
     name: z.string().min(5, 'Name must be at least 5 characters'),
     roleId: z.string().min(1, 'Please select a role'),
-    questionCount: z.number().min(5).max(50),
+    questionCount: z.number().min(1, 'There must be at least one question').max(50),
     duration: z.number().min(10).max(180),
     difficultyMix: z.object({
         easy: z.number(),
@@ -41,10 +53,12 @@ export default function EditAssessmentPage() {
   const [roles, setRoles] = useState<Role[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [draftTemplate, setDraftTemplate] = useState<(AssessmentTemplate & { questions: Question[] }) | null>(null);
+  const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
 
   const assessmentId = params.assessmentId as string;
 
-  const { register, handleSubmit, control, watch, setValue, reset } = useForm<AssessmentFormData>({
+  const { register, handleSubmit, control, watch, setValue, reset, formState: { errors } } = useForm<AssessmentFormData>({
     resolver: zodResolver(assessmentSchema),
   });
   
@@ -62,15 +76,27 @@ export default function EditAssessmentPage() {
             const rolesData = rolesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Role));
             setRoles(rolesData);
             
-            // Fetch assessment
+            // Fetch assessment template
             const assessmentRef = doc(firestore, 'assessments', assessmentId);
             const assessmentSnap = await getDoc(assessmentRef);
             
             if (assessmentSnap.exists()) {
-                const data = assessmentSnap.data() as AssessmentTemplate;
+                const templateData = assessmentSnap.data() as AssessmentTemplate;
+                
+                // Fetch associated questions
+                let questions: Question[] = [];
+                if(templateData.questionIds && templateData.questionIds.length > 0) {
+                  const questionsQuery = query(collection(firestore, 'questionBank'), where('__name__', 'in', templateData.questionIds));
+                  const questionsSnap = await getDocs(questionsQuery);
+                  questions = questionsSnap.docs.map(d => ({id: d.id, ...d.data()} as Question));
+                }
+
+                const fullTemplateData = { ...templateData, questions };
+                setDraftTemplate(fullTemplateData);
+
                 // Find roleId for the given role name to set default value correctly
-                const roleId = rolesData.find(r => r.name === data.role)?.id || '';
-                reset({ ...data, roleId });
+                const roleId = rolesData.find(r => r.name === templateData.role)?.id || '';
+                reset({ ...templateData, roleId });
             } else {
                 toast({ title: "Assessment not found", variant: "destructive" });
                 router.push('/admin/assessments');
@@ -87,18 +113,30 @@ export default function EditAssessmentPage() {
   }, [firestore, assessmentId, reset, router, toast]);
 
   const onSave = async (data: AssessmentFormData) => {
-    if (!firestore) return;
+    if (!firestore || !draftTemplate) return;
     setIsSaving(true);
     try {
+      const batch = writeBatch(firestore);
       const assessmentRef = doc(firestore, 'assessments', assessmentId);
       const selectedRole = roles.find(r => r.id === data.roleId);
-      
-      const dataToSave = {
-        ...data,
-        role: selectedRole?.name || '', // Save role name along with other data
-      };
 
-      await updateDoc(assessmentRef, dataToSave);
+      // 1. Update the main assessment template document
+      const templateToUpdate = {
+        ...data,
+        role: selectedRole?.name || '',
+        questionIds: draftTemplate.questions.map(q => q.id),
+        questionCount: draftTemplate.questions.length,
+      };
+      batch.update(assessmentRef, templateToUpdate);
+
+      // 2. Update all questions in the questionBank
+      for (const question of draftTemplate.questions) {
+        const questionRef = doc(firestore, 'questionBank', question.id);
+        batch.set(questionRef, question); // Use set to either create new or update existing
+      }
+      
+      await batch.commit();
+
       toast({ title: "Assessment Updated!", description: `${data.name} has been saved.` });
       router.push('/admin/assessments');
     } catch (error) {
@@ -107,6 +145,22 @@ export default function EditAssessmentPage() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleUpdateQuestion = (updatedQuestion: Question) => {
+      if (!draftTemplate) return;
+      const updatedQuestions = draftTemplate.questions.map(q => q.id === updatedQuestion.id ? updatedQuestion : q);
+      setDraftTemplate({...draftTemplate, questions: updatedQuestions });
+      setEditingQuestion(null);
+      toast({ title: "Question Updated", description: "The change has been saved to this draft." });
+  };
+
+  const handleDeleteQuestion = (questionId: string) => {
+      if (!draftTemplate) return;
+      const updatedQuestions = draftTemplate.questions.filter(q => q.id !== questionId);
+      setDraftTemplate({...draftTemplate, questions: updatedQuestions });
+      setValue('questionCount', updatedQuestions.length); // Update form state
+      toast({ title: "Question Removed", variant: 'destructive' });
   };
 
   const handleSliderChange = (values: number[]) => {
@@ -118,7 +172,7 @@ export default function EditAssessmentPage() {
     });
   };
 
-  if (isLoading) {
+  if (isLoading || !draftTemplate) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   }
 
@@ -128,92 +182,149 @@ export default function EditAssessmentPage() {
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to Assessments
       </Button>
       <h1 className="text-4xl font-bold mb-2">Edit Assessment Template</h1>
-      <p className="text-muted-foreground mb-8">Modify the parameters for this assessment.</p>
+      <p className="text-muted-foreground mb-8">Modify the parameters and questions for this assessment.</p>
       
       <form onSubmit={handleSubmit(onSave)}>
-        <Card className="max-w-2xl mx-auto bg-card/60 backdrop-blur-sm border-border/20 shadow-lg">
-          <CardHeader>
-            <CardTitle>Assessment Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-             <div className="space-y-2">
-                <Label htmlFor="name">Assessment Name</Label>
-                <Input id="name" {...register('name')} />
-            </div>
-             <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="roleId">Target Role</Label>
-                    <Controller
-                        name="roleId"
-                        control={control}
-                        render={({ field }) => (
-                            <Select onValueChange={field.onChange} value={field.value} disabled={roles.length === 0}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select a role..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {roles.map(role => <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                        )}
-                    />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="status">Status</Label>
-                    <Controller
-                        name="status"
-                        control={control}
-                        render={({ field }) => (
-                            <Select onValueChange={field.onChange} value={field.value}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="active">Active</SelectItem>
-                                    <SelectItem value="draft">Draft</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        )}
-                    />
-                </div>
-            </div>
-             <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="questionCount">Question Count</Label>
-                    <Input id="questionCount" type="number" {...register('questionCount', { valueAsNumber: true })} readOnly disabled />
-                </div>
-                 <div className="space-y-2">
-                    <Label htmlFor="duration">Duration (minutes)</Label>
-                    <Input id="duration" type="number" {...register('duration', { valueAsNumber: true })} />
-                </div>
-            </div>
-            <div className="space-y-2">
-                <Label>Difficulty Mix</Label>
-                <Controller name="difficultyMix" control={control} render={({ field }) => (
-                    <>
-                        <Slider
-                            value={field.value ? [field.value.easy, field.value.easy + field.value.medium] : [40, 80]}
-                            onValueChange={handleSliderChange}
-                            min={0} max={100} step={5}
-                            className="mt-4"
-                        />
-                        <div className="flex justify-between text-sm text-muted-foreground mt-2">
-                            <span style={{ color: '#22c55e' }}>Easy: {difficultyMix?.easy || 0}%</span>
-                            <span style={{ color: '#f97316' }}>Medium: {difficultyMix?.medium || 0}%</span>
-                            <span style={{ color: '#ef4444' }}>Hard: {difficultyMix?.hard || 0}%</span>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-1">
+             <Card className="sticky top-24 bg-card/60 backdrop-blur-sm border-border/20 shadow-lg">
+                <CardHeader>
+                  <CardTitle>Assessment Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-2">
+                      <Label htmlFor="name">Assessment Name</Label>
+                      <Input id="name" {...register('name')} />
+                      {errors.name && <p className="text-red-500 text-sm">{errors.name.message}</p>}
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                          <Label htmlFor="roleId">Target Role</Label>
+                          <Controller
+                              name="roleId"
+                              control={control}
+                              render={({ field }) => (
+                                  <Select onValueChange={field.onChange} value={field.value} disabled={roles.length === 0}>
+                                      <SelectTrigger>
+                                          <SelectValue placeholder="Select a role..." />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                          {roles.map(role => <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>)}
+                                      </SelectContent>
+                                  </Select>
+                              )}
+                          />
+                          {errors.roleId && <p className="text-red-500 text-sm">{errors.roleId.message}</p>}
+                      </div>
+                      <div className="space-y-2">
+                          <Label htmlFor="status">Status</Label>
+                          <Controller
+                              name="status"
+                              control={control}
+                              render={({ field }) => (
+                                  <Select onValueChange={field.onChange} value={field.value}>
+                                      <SelectTrigger><SelectValue /></SelectTrigger>
+                                      <SelectContent>
+                                          <SelectItem value="active">Active</SelectItem>
+                                          <SelectItem value="draft">Draft</SelectItem>
+                                      </SelectContent>
+                                  </Select>
+                              )}
+                          />
+                      </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                          <Label>Question Count</Label>
+                          <Input value={draftTemplate.questions.length} readOnly disabled />
+                      </div>
+                      <div className="space-y-2">
+                          <Label htmlFor="duration">Duration (minutes)</Label>
+                          <Input id="duration" type="number" {...register('duration', { valueAsNumber: true })} />
+                          {errors.duration && <p className="text-red-500 text-sm">{errors.duration.message}</p>}
+                      </div>
+                  </div>
+                  <div className="space-y-2">
+                      <Label>Difficulty Mix</Label>
+                      <Controller name="difficultyMix" control={control} render={({ field }) => (
+                          <>
+                              <Slider
+                                  value={field.value ? [field.value.easy, field.value.easy + field.value.medium] : [40, 80]}
+                                  onValueChange={handleSliderChange}
+                                  min={0} max={100} step={5}
+                                  className="mt-4"
+                              />
+                              <div className="flex justify-between text-sm text-muted-foreground mt-2">
+                                  <span style={{ color: '#22c55e' }}>Easy: {difficultyMix?.easy || 0}%</span>
+                                  <span style={{ color: '#f97316' }}>Medium: {difficultyMix?.medium || 0}%</span>
+                                  <span style={{ color: '#ef4444' }}>Hard: {difficultyMix?.hard || 0}%</span>
+                              </div>
+                          </>
+                      )}/>
+                  </div>
+                </CardContent>
+                <CardFooter>
+                    <Button type="submit" disabled={isSaving} className="w-full">
+                      {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      <Save className="mr-2 h-4 w-4" />
+                      {isSaving ? 'Saving...' : 'Save Changes'}
+                    </Button>
+                </CardFooter>
+              </Card>
+          </div>
+          <div className="lg:col-span-2">
+            <Card className="bg-card/60 backdrop-blur-sm border-border/20 shadow-lg">
+              <CardHeader>
+                <CardTitle>Questions</CardTitle>
+                <CardDescription>Review and edit the questions for this template.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                  {draftTemplate.questions.length > 0 ? (
+                      draftTemplate.questions.map((q, i) => (
+                        <div key={q.id} className="flex items-start gap-2">
+                            <QuestionPreview 
+                                question={q} 
+                                index={i} 
+                                onEdit={() => setEditingQuestion(q)} 
+                            />
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="destructive" size="icon" className="mt-1">
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This will remove the question from this assessment template. This action cannot be undone.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleDeleteQuestion(q.id)}>
+                                            Confirm
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                         </div>
-                    </>
-                )}/>
-            </div>
-            <p className="text-sm text-muted-foreground pt-4 border-t">Note: Editing individual questions within a saved template is not supported in this version.</p>
-          </CardContent>
-          <CardFooter>
-            <Button type="submit" disabled={isSaving}>
-              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              <Save className="mr-2 h-4 w-4" />
-              {isSaving ? 'Saving...' : 'Save Changes'}
-            </Button>
-          </CardFooter>
-        </Card>
+                      ))
+                  ) : (
+                      <p className="text-muted-foreground text-center py-8">No questions found for this template.</p>
+                  )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </form>
+      <QuestionEditor 
+          question={editingQuestion}
+          onSave={handleUpdateQuestion}
+          onClose={() => setEditingQuestion(null)}
+      />
     </div>
   );
 }
+
+    
