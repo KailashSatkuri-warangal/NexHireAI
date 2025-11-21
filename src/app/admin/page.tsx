@@ -88,11 +88,11 @@ export default function AdminHomePage() {
             
             // --- ACTIVITY FEED ---
             const newCandidatesQuery = query(collection(firestore, 'users'), where('role', '==', 'candidate'), orderBy('createdAt', 'desc'), limit(5));
-            const completedAssessmentsQuery = query(collectionGroup(firestore, 'assessments'), orderBy('submittedAt', 'desc'), limit(5));
-
-            const [newCandidatesSnap, completedAssessmentsSnap] = await Promise.all([
+             // Firestore does not support collection group queries with `orderBy` without a composite index.
+            // As a workaround, we will fetch the latest users and then fetch their latest assessment.
+            // This is less direct but avoids the need for a manually-created index.
+            const [newCandidatesSnap] = await Promise.all([
                 getDocs(newCandidatesQuery),
-                getDocs(completedAssessmentsQuery)
             ]);
 
             const candidateActivities: ActivityItem[] = newCandidatesSnap.docs
@@ -110,25 +110,35 @@ export default function AdminHomePage() {
                     };
                 });
             
-            const assessmentActivities: ActivityItem[] = await Promise.all(completedAssessmentsSnap.docs
-                .filter(doc => doc.data().submittedAt)
-                .map(async (doc) => {
-                    const attempt = doc.data() as AssessmentAttempt;
-                    const userDoc = await getDoc(collection(firestore, 'users').doc(attempt.userId));
-                    const roleDoc = await getDoc(collection(firestore, 'roles').doc(attempt.roleId));
-                    const userData = userDoc.data() as UserType;
-                    const roleName = roleDoc.exists() ? (roleDoc.data() as Role).name : 'an assessment';
-                    return {
-                        type: 'assessment_completed',
-                        text: `${userData.name} completed the ${roleName} assessment.`,
-                        subtext: `Scored ${Math.round(attempt.finalScore!)}%`,
-                        timestamp: attempt.submittedAt!,
-                        icon: <NotebookPen className="h-5 w-5" />,
-                        avatarUrl: userData.avatarUrl,
-                        avatarFallback: userData.name.charAt(0)
-                    };
-                }));
+            const assessmentActivities: ActivityItem[] = [];
+            for (const userDoc of newCandidatesSnap.docs) {
+                const userId = userDoc.id;
+                const userData = userDoc.data() as UserType;
+                const userAssessmentsQuery = query(
+                    collection(firestore, `users/${userId}/assessments`),
+                    orderBy('submittedAt', 'desc'),
+                    limit(1)
+                );
+                const userAssessmentsSnap = await getDocs(userAssessmentsQuery);
 
+                if (!userAssessmentsSnap.empty) {
+                    const attempt = userAssessmentsSnap.docs[0].data() as AssessmentAttempt;
+                    if(attempt.submittedAt) {
+                         const roleDoc = await getDoc(doc(firestore, 'roles', attempt.roleId));
+                         const roleName = roleDoc.exists() ? (roleDoc.data() as Role).name : 'an assessment';
+                         assessmentActivities.push({
+                            type: 'assessment_completed',
+                            text: `${userData.name} completed the ${roleName} assessment.`,
+                            subtext: `Scored ${Math.round(attempt.finalScore!)}%`,
+                            timestamp: attempt.submittedAt!,
+                            icon: <NotebookPen className="h-5 w-5" />,
+                            avatarUrl: userData.avatarUrl,
+                            avatarFallback: userData.name.charAt(0)
+                        });
+                    }
+                }
+            }
+            
             const combinedActivities = [...candidateActivities, ...assessmentActivities]
                 .sort((a, b) => b.timestamp - a.timestamp)
                 .slice(0, 5);
@@ -275,4 +285,3 @@ export default function AdminHomePage() {
   );
 }
 
-    
