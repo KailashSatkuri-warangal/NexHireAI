@@ -1,3 +1,4 @@
+
 'use client';
 import { useState, useEffect } from 'react';
 import { collection, getDocs, query, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
@@ -170,7 +171,7 @@ export default function AssessmentsPage() {
                                                         <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
                                                     </DropdownMenuTrigger>
                                                     <DropdownMenuContent>
-                                                        <DropdownMenuItem onSelect={() => toast({title: "Coming Soon!", description: "Editing will be enabled in a future update."})}>
+                                                        <DropdownMenuItem onSelect={() => router.push(`/admin/assessments/${assessment.id}/edit`)}>
                                                             <Pencil className="mr-2 h-4 w-4" /> Edit
                                                         </DropdownMenuItem>
                                                         <DropdownMenuItem onSelect={() => toast({title: "Coming Soon!", description: "Cloning will be enabled in a future update."})}>
