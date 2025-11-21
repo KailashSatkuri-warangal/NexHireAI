@@ -1,7 +1,7 @@
 
 'use client';
 import { useEffect, useState } from 'react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import type { User } from '@/lib/types';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -9,15 +9,34 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, Eye } from 'lucide-react';
+import { Loader2, Eye, ListPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
 
 export default function CandidatesPage() {
     const { firestore } = initializeFirebase();
+    const { user: adminUser } = useAuth();
     const router = useRouter();
+    const { toast } = useToast();
     const [candidates, setCandidates] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set());
+    const [shortlistName, setShortlistName] = useState('');
 
     useEffect(() => {
         if (!firestore) return;
@@ -39,6 +58,42 @@ export default function CandidatesPage() {
         fetchCandidates();
     }, [firestore]);
 
+    const handleSelectCandidate = (candidateId: string) => {
+        setSelectedCandidates(prev => {
+            const newSelection = new Set(prev);
+            if (newSelection.has(candidateId)) {
+                newSelection.delete(candidateId);
+            } else {
+                newSelection.add(candidateId);
+            }
+            return newSelection;
+        });
+    };
+
+    const handleCreateShortlist = async () => {
+        if (!adminUser || !firestore) return;
+        if (shortlistName.trim() === '') {
+            toast({ title: "Name required", description: "Please enter a name for your shortlist.", variant: "destructive" });
+            return;
+        }
+
+        try {
+            await addDoc(collection(firestore, 'cohorts'), {
+                name: shortlistName,
+                candidateIds: Array.from(selectedCandidates),
+                createdBy: adminUser.id,
+                createdAt: Date.now(),
+            });
+            toast({ title: "Shortlist Created!", description: `Cohort "${shortlistName}" has been created.` });
+            setSelectedCandidates(new Set());
+            setShortlistName('');
+            router.push('/admin/pipeline');
+        } catch (error) {
+            console.error("Error creating cohort:", error);
+            toast({ title: "Error", description: "Could not create the shortlist.", variant: "destructive" });
+        }
+    };
+
     const containerVariants = {
         hidden: { opacity: 0 },
         visible: {
@@ -54,14 +109,46 @@ export default function CandidatesPage() {
         visible: { y: 0, opacity: 1 },
     };
 
+    const isAnyCandidateSelected = selectedCandidates.size > 0;
+
     return (
         <div className="p-8">
-            <h1 className="text-4xl font-bold mb-8">Candidate Management</h1>
+            <div className="flex justify-between items-center mb-8">
+                <h1 className="text-4xl font-bold">Candidate Management</h1>
+                {isAnyCandidateSelected && (
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button>
+                                <ListPlus className="mr-2 h-4 w-4" />
+                                Create Shortlist ({selectedCandidates.size})
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Create New Shortlist</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    You are creating a new cohort with {selectedCandidates.size} selected candidate(s). Give this shortlist a name to track it in your pipeline.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                             <Input 
+                                placeholder="e.g., Senior Frontend - Q3 2024"
+                                value={shortlistName}
+                                onChange={(e) => setShortlistName(e.target.value)}
+                            />
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleCreateShortlist}>Create</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                )}
+            </div>
+
             <Card className="bg-card/60 backdrop-blur-sm border-border/20 shadow-lg">
                 <CardHeader>
                     <CardTitle>All Candidates</CardTitle>
                     <CardDescription>
-                        Browse, search, and manage all candidates on the platform.
+                        Select candidates to create a shortlist for your recruitment pipeline.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -83,6 +170,7 @@ export default function CandidatesPage() {
                             <Table>
                                 <TableHeader>
                                     <TableRow>
+                                        <TableHead className="w-[50px]"></TableHead>
                                         <TableHead>Name</TableHead>
                                         <TableHead>Experience</TableHead>
                                         <TableHead>Top Skills</TableHead>
@@ -94,8 +182,15 @@ export default function CandidatesPage() {
                                         <motion.tr
                                             key={candidate.id}
                                             variants={itemVariants}
-                                            className="w-full"
+                                            className={cn("w-full transition-colors", selectedCandidates.has(candidate.id) && "bg-primary/10")}
                                         >
+                                            <TableCell>
+                                                <Checkbox
+                                                    checked={selectedCandidates.has(candidate.id)}
+                                                    onCheckedChange={() => handleSelectCandidate(candidate.id)}
+                                                    aria-label="Select candidate"
+                                                />
+                                            </TableCell>
                                             <TableCell>
                                                 <div className="flex items-center gap-3">
                                                     <Avatar>

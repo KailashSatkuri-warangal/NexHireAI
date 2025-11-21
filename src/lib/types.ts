@@ -92,6 +92,7 @@ export interface AssessmentAttempt {
       suggestions: string[];
     } | null;
     questions?: Question[]; // Only used for scoring context, not saved
+    cohortId?: string;
 }
 
 export interface User {
@@ -179,3 +180,24 @@ export type CodeExecutionResult = {
     time: string;
     memory: string;
 };
+
+export interface Cohort {
+    id: string;
+    name: string;
+    createdBy: string;
+    createdAt: number;
+    candidateIds: string[];
+    candidates?: User[]; // Populated on the client
+    assignedAssessmentId?: string;
+    assignedAssessmentName?: string; // For display
+    assessmentAssignedAt?: number;
+}
+
+export interface Notification {
+    id: string;
+    title: string;
+    message: string;
+    link?: string;
+    isRead: boolean;
+    createdAt: number;
+}

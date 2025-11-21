@@ -99,7 +99,8 @@
         },
         "finalScore": { "type": "number" },
         "skillScores": { "type": "object" },
-        "aiFeedback": { "type": "string" }
+        "aiFeedback": { "type": "string" },
+        "cohortId": { "type": "string" }
       },
       "required": ["roleId", "startedAt", "assessmentId"]
     },
@@ -119,6 +120,33 @@
         "totalTestCases": { "type": "number" }
       },
       "required": ["questionId", "timeTaken", "difficulty"]
+    },
+    "Cohort": {
+        "title": "Recruitment Cohort",
+        "description": "A group of shortlisted candidates for a specific role or pipeline stage.",
+        "type": "object",
+        "properties": {
+            "name": { "type": "string" },
+            "createdBy": { "type": "string" },
+            "createdAt": { "type": "number" },
+            "candidateIds": { "type": "array", "items": { "type": "string" } },
+            "assignedAssessmentId": { "type": "string" },
+            "assessmentAssignedAt": { "type": "number" }
+        },
+        "required": ["name", "createdBy", "createdAt", "candidateIds"]
+    },
+    "Notification": {
+        "title": "User Notification",
+        "description": "A notification sent to a user's dashboard.",
+        "type": "object",
+        "properties": {
+            "title": { "type": "string" },
+            "message": { "type": "string" },
+            "link": { "type": "string", "format": "uri" },
+            "isRead": { "type": "boolean" },
+            "createdAt": { "type": "number" }
+        },
+        "required": ["title", "message", "isRead", "createdAt"]
     }
   },
   "auth": {
@@ -133,6 +161,10 @@
       "schema": { "$ref": "#/backend/entities/AssessmentAttempt" },
       "description": "Stores a user's individual assessment attempts."
     },
+    "/users/{userId}/notifications/{notificationId}": {
+        "schema": { "$ref": "#/backend/entities/Notification" },
+        "description": "Stores notifications for a specific user."
+    },
     "/roles/{roleId}": {
       "schema": { "$ref": "#/backend/entities/Role" },
       "description": "Stores the master list of professional roles and their sub-skills."
@@ -144,6 +176,10 @@
     "/assessments/{assessmentId}": {
       "schema": { "$ref": "#/backend/entities/AssessmentTemplate" },
       "description": "Stores assessment templates created by admins."
+    },
+    "/cohorts/{cohortId}": {
+        "schema": { "$ref": "#/backend/entities/Cohort" },
+        "description": "Stores recruitment cohorts (shortlists)."
     }
   }
 }
