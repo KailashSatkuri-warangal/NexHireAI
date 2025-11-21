@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 import { collection, getDocs, query, where, orderBy, doc, getDoc, collectionGroup, limit } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import type { User as UserType, Role, AssessmentTemplate, AssessmentAttempt } from '@/lib/types';
-import { format, subMonths } from 'date-fns';
+import { format, subMonths, startOfMonth } from 'date-fns';
 
 const containerVariants = {
     hidden: { opacity: 1 },
@@ -48,13 +48,13 @@ export default function AdminHomePage() {
         setIsLoading(true);
         try {
             // 1. Fetch all collections directly
-            const usersSnapshot = await getDocs(collection(firestore, 'users'));
+            const usersQuery = query(collection(firestore, 'users'), where('role', '==', 'candidate'));
+            const usersSnapshot = await getDocs(usersQuery);
             const rolesSnapshot = await getDocs(collection(firestore, 'roles'));
             const assessmentsSnapshot = await getDocs(collection(firestore, 'assessments'));
 
             // 2. Process data on the client side
-            const allUsers = usersSnapshot.docs.map(doc => doc.data() as UserType);
-            const candidateCount = allUsers.filter(u => u.role === 'candidate').length;
+            const candidateCount = usersSnapshot.size;
             
             const allAssessments = assessmentsSnapshot.docs.map(doc => doc.data() as AssessmentTemplate);
             const activeAssessmentsCount = allAssessments.filter(a => a.status === 'active').length;
@@ -67,18 +67,23 @@ export default function AdminHomePage() {
                 roles: totalRoles
             });
 
-            // 3. Prepare Chart Data (unchanged)
+            // 3. Prepare Chart Data for the last 6 months
             const monthlyData: Record<string, { Candidates: number }> = {};
-            const sixMonthsAgo = subMonths(new Date(), 5);
-            sixMonthsAgo.setDate(1);
-
+            const now = new Date();
+            
             for (let i = 5; i >= 0; i--) {
-                const month = format(subMonths(new Date(), i), 'MMM');
+                const monthDate = subMonths(now, i);
+                const month = format(monthDate, 'MMM');
                 monthlyData[month] = { Candidates: 0 };
             }
-            allUsers.forEach(c => {
-                if (c.createdAt && typeof c.createdAt.seconds === 'number') {
-                     const joinDate = new Date(c.createdAt.seconds * 1000);
+
+            const sixMonthsAgo = startOfMonth(subMonths(now, 5));
+
+            usersSnapshot.docs.forEach(doc => {
+                 const c = doc.data() as UserType;
+                 // Firestore timestamp can be either a Date object or a Firestore Timestamp object
+                if (c.createdAt && typeof c.createdAt === 'object' && 'seconds' in c.createdAt) {
+                     const joinDate = new Date((c.createdAt as any).seconds * 1000);
                      if (joinDate >= sixMonthsAgo) {
                         const month = format(joinDate, 'MMM');
                         if (monthlyData[month]) {
@@ -87,8 +92,8 @@ export default function AdminHomePage() {
                      }
                 }
             });
-            setChartData(Object.entries(monthlyData).map(([name, values]) => ({ name, ...values })));
 
+            setChartData(Object.entries(monthlyData).map(([name, values]) => ({ name, ...values })));
 
         } catch (error) {
             console.error("Failed to fetch admin dashboard data:", error);
