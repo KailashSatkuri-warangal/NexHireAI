@@ -39,8 +39,6 @@ export default function AssessmentResultPage() {
             
             try {
                 const attemptId = params.id as string;
-                // Simplified: Always use the logged-in user's ID for this page.
-                // The admin view for other users' profiles is handled separately.
                 const attemptDocRef = doc(firestore, 'users', user.id, 'assessments', attemptId);
                 const attemptDoc = await getDoc(attemptDocRef);
 
@@ -59,7 +57,6 @@ export default function AssessmentResultPage() {
                 const questionIds = attemptData.responses.map(res => res.questionId);
                 let questionsFromDb: Question[] = [];
                 if (questionIds.length > 0) {
-                    // Firestore 'in' query is limited to 30 items, so we handle it in chunks if necessary.
                     for (let i = 0; i < questionIds.length; i += 30) {
                         const chunk = questionIds.slice(i, i + 30);
                         const qQuery = query(collection(firestore, 'questionBank'), where('__name__', 'in', chunk));
@@ -68,10 +65,13 @@ export default function AssessmentResultPage() {
                     }
                 }
                 
-                const questionsWithAnswers = attemptData.responses.map(res => {
-                    const question = questionsFromDb.find(q => q.id === res.questionId) || { id: res.questionId, questionText: 'Question not found', type: 'short', difficulty: 'Medium', timeLimit: 0, tags: [], skill: 'unknown' };
-                    return { ...question, ...res };
-                });
+                const questionsWithAnswers = attemptData.responses
+                    .map(res => {
+                        const question = questionsFromDb.find(q => q.id === res.questionId);
+                        if (!question) return null; // If a question was deleted, skip it.
+                        return { ...question, ...res };
+                    })
+                    .filter(Boolean) as (Question & UserResponse)[]; // Filter out any nulls
 
                 setAttempt({ ...attemptData, roleName, questionsWithAnswers });
 
@@ -244,4 +244,3 @@ const InfoCard = ({ title, value }: { title: string, value: string }) => (
     
 
     
-
