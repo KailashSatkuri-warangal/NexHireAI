@@ -11,7 +11,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter }
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { Loader2, BookCopy, Sparkles, AlertTriangle } from 'lucide-react';
-import type { Role, AssessmentTemplate, Question } from '@/lib/types';
+import type { Role, AssessmentTemplate, Question, Cohort } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { populateRoles } from '@/ai/flows/populate-roles-flow';
 import { generateAssessment } from '@/ai/flows/generate-assessment-flow';
@@ -27,7 +27,7 @@ export default function SkillAssessmentPage() {
   const assessmentStore = useAssessmentStore();
 
   const [roles, setRoles] = useState<Role[]>([]);
-  const [assessmentTemplates, setAssessmentTemplates] = useState<AssessmentTemplate[]>([]);
+  const [assignedTemplates, setAssignedTemplates] = useState<AssessmentTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isPopulating, setIsPopulating] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -54,13 +54,13 @@ export default function SkillAssessmentPage() {
   }, [user, authIsLoading, router]);
 
   useEffect(() => {
-    if (!firestore) return;
+    if (!firestore || !user) return;
     
     setIsLoading(true);
 
     const rolesQuery = query(collection(firestore, 'roles'));
-    const templatesQuery = query(collection(firestore, 'assessments'), where('status', '==', 'active'));
 
+    // Listen for roles
     const unsubRoles = onSnapshot(rolesQuery, (querySnapshot) => {
       if (querySnapshot.empty && !isPopulating) {
         handlePopulate();
@@ -68,24 +68,43 @@ export default function SkillAssessmentPage() {
         const rolesData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Role[];
         setRoles(rolesData);
       }
-    }, (error) => console.error("Error fetching roles:", error));
+      setIsLoading(false);
+    }, (error) => {
+        console.error("Error fetching roles:", error)
+        setIsLoading(false);
+    });
+
+    // Fetch assigned assessments
+    const fetchAssignedAssessments = async () => {
+        // 1. Find all cohorts the user is in
+        const cohortsRef = collection(firestore, 'cohorts');
+        const userCohortsQuery = query(cohortsRef, where('candidateIds', 'array-contains', user.id));
+        const userCohortsSnap = await getDocs(userCohortsQuery);
+
+        // 2. Get all the assignedAssessmentIds from those cohorts
+        const assignedIds = userCohortsSnap.docs
+            .map(doc => (doc.data() as Cohort).assignedAssessmentId)
+            .filter((id): id is string => !!id);
+
+        if (assignedIds.length > 0) {
+            // 3. Fetch the assessment templates for those IDs
+            const templatesQuery = query(collection(firestore, 'assessments'), where('__name__', 'in', assignedIds));
+            const templatesSnap = await getDocs(templatesQuery);
+            const templatesData = templatesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AssessmentTemplate));
+            setAssignedTemplates(templatesData);
+        } else {
+            setAssignedTemplates([]);
+        }
+    };
     
-    const unsubTemplates = onSnapshot(templatesQuery, (querySnapshot) => {
-        const templatesData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AssessmentTemplate));
-        setAssessmentTemplates(templatesData);
-    }, (error) => console.error("Error fetching assessment templates:", error));
+    fetchAssignedAssessments();
 
-
-    Promise.all([new Promise(res => onSnapshot(rolesQuery, res)), new Promise(res => onSnapshot(templatesQuery, res))])
-        .then(() => setIsLoading(false))
-        .catch(() => setIsLoading(false));
 
     return () => {
         unsubRoles();
-        unsubTemplates();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firestore]);
+  }, [firestore, user]);
   
   const handleStartPractice = (roleId: string, roleName: string) => {
     startTransition(async () => {
@@ -105,22 +124,42 @@ export default function SkillAssessmentPage() {
     });
   }
 
-  const handleStartOfficial = (template: AssessmentTemplate) => {
-    if (!template.questions || template.questions.length === 0) {
+  const handleStartOfficial = async (template: AssessmentTemplate) => {
+    // We must fetch the questions for the template before starting
+    if (!template.questionIds || template.questionIds.length === 0) {
         toast({ title: "Not Ready", description: "This assessment has no questions. Please contact an admin.", variant: "destructive" });
         return;
     }
 
-    assessmentStore.setAssessment({
-        id: template.id,
-        roleId: template.roleId,
-        roleName: template.name,
-        questions: template.questions,
-        totalTimeLimit: template.duration * 60,
-        isTemplate: true,
-        templateId: template.id,
-    });
-    router.push(`/assessment/${template.id}`);
+    toast({ title: "Loading Assessment..." });
+
+    try {
+        const questions: Question[] = [];
+        for (let i = 0; i < template.questionIds.length; i += 30) {
+            const chunk = template.questionIds.slice(i, i + 30);
+            const questionsQuery = query(collection(firestore, 'questionBank'), where('__name__', 'in', chunk));
+            const questionsSnap = await getDocs(questionsQuery);
+            const questionsChunk = questionsSnap.docs.map(d => ({id: d.id, ...d.data()} as Question));
+            questions.push(...questionsChunk);
+        }
+
+        const orderedQuestions = template.questionIds.map(id => questions.find(q => q.id === id)).filter(Boolean) as Question[];
+
+        assessmentStore.setAssessment({
+            id: template.id,
+            roleId: template.roleId,
+            roleName: template.name,
+            questions: orderedQuestions,
+            totalTimeLimit: template.duration * 60,
+            isTemplate: true,
+            templateId: template.id,
+        });
+        router.push(`/assessment/${template.id}`);
+
+    } catch(error) {
+        console.error("Error fetching questions for official assessment:", error);
+        toast({ title: "Failed to load", description: "Could not retrieve questions for this assessment.", variant: "destructive" });
+    }
   }
 
   if (authIsLoading || isLoading || isPopulating) {
@@ -143,17 +182,17 @@ export default function SkillAssessmentPage() {
         <div>
             <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
                 <h1 className="text-4xl font-bold flex items-center gap-3"><Sparkles className="text-primary"/> Official Assessments</h1>
-                <p className="text-lg text-muted-foreground">Take these assessments to get a verified score for your profile.</p>
+                <p className="text-lg text-muted-foreground">These are assessments assigned to you by recruiters.</p>
             </motion.div>
             
-            {assessmentTemplates.length > 0 ? (
+            {assignedTemplates.length > 0 ? (
                  <motion.div
                     className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
                     variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } }}}
                     initial="hidden"
                     animate="show"
                 >
-                    {assessmentTemplates.map((template) => (
+                    {assignedTemplates.map((template) => (
                         <motion.div key={template.id} variants={{ hidden: { y: 20, opacity: 0 }, show: { y: 0, opacity: 1 } }}>
                             <Card className="h-full bg-card/60 backdrop-blur-sm border-border/20 shadow-lg transition-all duration-300 hover:border-primary/60 hover:shadow-primary/10 hover:-translate-y-1 flex flex-col">
                                 <CardHeader>
@@ -174,7 +213,7 @@ export default function SkillAssessmentPage() {
                 <Card className="bg-card/30 border-dashed">
                     <CardContent className="p-8 text-center text-muted-foreground">
                         <AlertTriangle className="mx-auto h-8 w-8 mb-2"/>
-                        No official assessments have been created by admins yet. Check back soon!
+                        You have no official assessments assigned to you yet.
                     </CardContent>
                 </Card>
             )}
