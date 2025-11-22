@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { collection, getDocs, query, addDoc, writeBatch } from 'firebase/firestore';
+import { collection, getDocs, query, addDoc, writeBatch, doc } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { generateAssessmentTemplate } from '@/ai/flows/generate-assessment-template-flow';
@@ -441,3 +441,5 @@ export default function NewAssessmentPage() {
         </div>
     );
 }
+
+    
