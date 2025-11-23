@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useAuth } from '@/hooks/use-auth';
@@ -10,7 +9,7 @@ import { initializeFirebase } from '@/firebase';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
-import { Loader2, BookCopy, Sparkles, AlertTriangle, CheckCircle, Play, Trash2 } from 'lucide-react';
+import { Loader2, BookCopy, Sparkles, AlertTriangle, CheckCircle, Play, Trash2, RotateCcw } from 'lucide-react';
 import type { Role, AssessmentTemplate, Question, Cohort, AssessmentAttempt } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { populateRoles } from '@/ai/flows/populate-roles-flow';
@@ -27,7 +26,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { v4 as uuidv4 } from 'uuid';
 
@@ -167,6 +165,7 @@ export default function SkillAssessmentPage() {
       toast({ title: `Generating Practice for ${roleName}`, description: 'The AI is creating a unique set of 30 questions. Please wait.' });
       try {
         const assessment = await generateAssessment(roleId);
+        assessment.rootAssessmentId = roleId; // For practice tests, the root ID is the role ID for history tracking
         assessmentStore.setAssessment(assessment);
         toast({ title: 'Practice Ready!', description: `Your test for ${roleName} is about to begin.` });
         router.push(`/assessment/${assessment.id}`);
@@ -180,7 +179,6 @@ export default function SkillAssessmentPage() {
   }
 
   const startOfficialAssessment = async (template: AssessmentTemplate) => {
-    // We must fetch the questions for the template before starting
     if (!template.questionIds || template.questionIds.length === 0) {
         toast({ title: "Not Ready", description: "This assessment has no questions. Please contact an admin.", variant: "destructive" });
         return;
@@ -201,13 +199,14 @@ export default function SkillAssessmentPage() {
         const orderedQuestions = template.questionIds.map(id => questions.find(q => q.id === id)).filter(Boolean) as Question[];
 
         assessmentStore.setAssessment({
-            id: template.id,
+            id: uuidv4(), // Give official attempts a unique ID for the session
             roleId: template.roleId,
             roleName: template.name,
             questions: orderedQuestions,
             totalTimeLimit: template.duration * 60,
             isTemplate: true,
             templateId: template.id,
+            rootAssessmentId: template.id, // For official tests, the root ID is the template ID
         });
         router.push(`/assessment/${template.id}`);
 
@@ -308,33 +307,44 @@ export default function SkillAssessmentPage() {
                       initial="hidden"
                       animate="show"
                   >
-                      {roles.map((role) => (
-                      <motion.div key={role.id} variants={{ hidden: { y: 20, opacity: 0 }, show: { y: 0, opacity: 1 } }}>
-                          <Card className="h-full bg-card/60 backdrop-blur-sm border-border/20 shadow-lg transition-all duration-300 hover:border-primary/60 hover:shadow-primary/10 hover:-translate-y-1 flex flex-col">
-                              <CardHeader>
-                                  <CardTitle>{role.name}</CardTitle>
-                                  <CardDescription>{role.description}</CardDescription>
-                              </CardHeader>
-                              <CardContent className="flex-grow">
-                                  <h4 className="text-sm font-semibold mb-2">Key Skills:</h4>
-                                  <div className="flex flex-wrap gap-1">
-                                      {role.subSkills.map(skill => <Badge key={skill} variant="secondary">{skill}</Badge>)}
-                                  </div>
-                              </CardContent>
-                              <CardFooter>
-                                  <Button 
-                                      className="w-full mt-auto" 
-                                      variant="secondary"
-                                      onClick={() => handleStartPractice(role.id, role.name)} 
-                                      disabled={isPending}
-                                  >
-                                      {isPending && generatingRoleId === role.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                      {isPending && generatingRoleId === role.id ? 'Generating...' : 'Start Practice'}
-                                  </Button>
-                              </CardFooter>
-                          </Card>
-                      </motion.div>
-                      ))}
+                      {roles.map((role) => {
+                        const isInProgress = !assessmentStore.assessment?.isTemplate && assessmentStore.assessment?.roleId === role.id;
+                        return (
+                          <motion.div key={role.id} variants={{ hidden: { y: 20, opacity: 0 }, show: { y: 0, opacity: 1 } }}>
+                              <Card className="h-full bg-card/60 backdrop-blur-sm border-border/20 shadow-lg transition-all duration-300 hover:border-primary/60 hover:shadow-primary/10 hover:-translate-y-1 flex flex-col">
+                                  <CardHeader>
+                                      <CardTitle>{role.name}</CardTitle>
+                                      <CardDescription>{role.description}</CardDescription>
+                                  </CardHeader>
+                                  <CardContent className="flex-grow">
+                                      <h4 className="text-sm font-semibold mb-2">Key Skills:</h4>
+                                      <div className="flex flex-wrap gap-1">
+                                          {role.subSkills.map(skill => <Badge key={skill} variant="secondary">{skill}</Badge>)}
+                                      </div>
+                                  </CardContent>
+                                  <CardFooter>
+                                      <Button 
+                                          className="w-full mt-auto" 
+                                          variant={isInProgress ? "default" : "secondary"}
+                                          onClick={() => handleStartPractice(role.id, role.name)} 
+                                          disabled={isPending}
+                                      >
+                                          {isPending && generatingRoleId === role.id ? (
+                                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                          ) : isInProgress ? (
+                                              <RotateCcw className="mr-2 h-4 w-4" />
+                                          ) : null}
+                                          {isPending && generatingRoleId === role.id 
+                                              ? 'Generating...' 
+                                              : isInProgress 
+                                              ? 'Resume' 
+                                              : 'Start Practice'}
+                                      </Button>
+                                  </CardFooter>
+                              </Card>
+                          </motion.div>
+                        );
+                      })}
                   </motion.div>
               ) : null }
           </div>
