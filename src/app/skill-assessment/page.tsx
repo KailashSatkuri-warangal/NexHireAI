@@ -1,15 +1,14 @@
-
 'use client';
 
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useState, useTransition, useMemo } from 'react';
 import { collection, onSnapshot, query, where, getDocs, doc } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
-import { Loader2, BookCopy, Sparkles, AlertTriangle, CheckCircle, Play, Trash2, RotateCcw } from 'lucide-react';
+import { Loader2, BookCopy, Sparkles, AlertTriangle, CheckCircle, Play, Trash2, RotateCcw, History } from 'lucide-react';
 import type { Role, AssessmentTemplate, Question, Cohort, AssessmentAttempt } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { populateRoles } from '@/ai/flows/populate-roles-flow';
@@ -43,12 +42,12 @@ export default function SkillAssessmentPage() {
   const [roles, setRoles] = useState<Role[]>([]);
   const [assignedTemplates, setAssignedTemplates] = useState<AssessmentTemplate[]>([]);
   const [attemptedTemplateIds, setAttemptedTemplateIds] = useState<Set<string>>(new Set());
+  const [practiceAttempts, setPracticeAttempts] = useState<Map<string, AssessmentAttempt>>(new Map()); // Map<roleId, latestAttempt>
   const [isLoading, setIsLoading] = useState(true);
   const [isPopulating, setIsPopulating] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [generatingRoleId, setGeneratingRoleId] = useState<string | null>(null);
 
-  // New state to manage the confirmation dialog
   const [showInProgressDialog, setShowInProgressDialog] = useState(false);
   const [pendingAssessmentAction, setPendingAssessmentAction] = useState<PendingAssessment | null>(null);
 
@@ -78,8 +77,6 @@ export default function SkillAssessmentPage() {
     setIsLoading(true);
 
     const rolesQuery = query(collection(firestore, 'roles'));
-
-    // Listen for roles
     const unsubRoles = onSnapshot(rolesQuery, (querySnapshot) => {
       if (querySnapshot.empty && !isPopulating) {
         handlePopulate();
@@ -93,39 +90,48 @@ export default function SkillAssessmentPage() {
         setIsLoading(false);
     });
 
-    // Fetch assigned assessments and past attempts
     const fetchAssignmentsAndHistory = async () => {
-        // 1. Find all cohorts the user is in
         const cohortsRef = collection(firestore, 'cohorts');
         const userCohortsQuery = query(cohortsRef, where('candidateIds', 'array-contains', user.id));
         const userCohortsSnap = await getDocs(userCohortsQuery);
-
-        // 2. Get all the assignedAssessmentIds from those cohorts
-        const assignedIds = userCohortsSnap.docs
-            .map(doc => (doc.data() as Cohort).assignedAssessmentId)
-            .filter((id): id is string => !!id);
+        const assignedIds = userCohortsSnap.docs.map(doc => (doc.data() as Cohort).assignedAssessmentId).filter((id): id is string => !!id);
 
         if (assignedIds.length > 0) {
-            // 3. Fetch the assessment templates for those IDs
             const templatesQuery = query(collection(firestore, 'assessments'), where('__name__', 'in', assignedIds));
             const templatesSnap = await getDocs(templatesQuery);
-            const templatesData = templatesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AssessmentTemplate));
-            setAssignedTemplates(templatesData);
+            setAssignedTemplates(templatesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AssessmentTemplate)));
         } else {
             setAssignedTemplates([]);
         }
         
-        // 4. Fetch user's assessment history to check for completed official assessments
         const attemptsQuery = query(collection(firestore, `users/${user.id}/assessments`));
         const attemptsSnap = await getDocs(attemptsQuery);
-        const attemptedIds = new Set(attemptsSnap.docs.map(doc => (doc.data() as AssessmentAttempt).assessmentId));
-        setAttemptedTemplateIds(attemptedIds);
+        
+        const latestPracticeAttempts = new Map<string, AssessmentAttempt>();
+        const officialAttemptedIds = new Set<string>();
+
+        attemptsSnap.docs.forEach(doc => {
+            const attempt = { ...doc.data(), docId: doc.id } as AssessmentAttempt;
+            // Check if it's a practice test by seeing if the rootAssessmentId is a roleId
+            if (attempt.rootAssessmentId && !attempt.assessmentId.startsWith('assessment_')) {
+              const existing = latestPracticeAttempts.get(attempt.rootAssessmentId);
+              if (!existing || attempt.submittedAt! > existing.submittedAt!) {
+                latestPracticeAttempts.set(attempt.rootAssessmentId, attempt);
+              }
+            } else {
+              // It's an official assessment
+              if (attempt.rootAssessmentId) {
+                officialAttemptedIds.add(attempt.rootAssessmentId);
+              }
+            }
+        });
+        setPracticeAttempts(latestPracticeAttempts);
+        setAttemptedTemplateIds(officialAttemptedIds);
     };
     
     fetchAssignmentsAndHistory().finally(() => {
         if (!isPopulating) setIsLoading(false);
     });
-
 
     return () => {
         unsubRoles();
@@ -165,7 +171,7 @@ export default function SkillAssessmentPage() {
       toast({ title: `Generating Practice for ${roleName}`, description: 'The AI is creating a unique set of 30 questions. Please wait.' });
       try {
         const assessment = await generateAssessment(roleId);
-        assessment.rootAssessmentId = roleId; // For practice tests, the root ID is the role ID for history tracking
+        assessment.rootAssessmentId = roleId;
         assessmentStore.setAssessment(assessment);
         toast({ title: 'Practice Ready!', description: `Your test for ${roleName} is about to begin.` });
         router.push(`/assessment/${assessment.id}`);
@@ -197,18 +203,19 @@ export default function SkillAssessmentPage() {
         }
 
         const orderedQuestions = template.questionIds.map(id => questions.find(q => q.id === id)).filter(Boolean) as Question[];
-
+        
+        const newAssessmentId = uuidv4();
         assessmentStore.setAssessment({
-            id: uuidv4(), // Give official attempts a unique ID for the session
+            id: newAssessmentId,
             roleId: template.roleId,
             roleName: template.name,
             questions: orderedQuestions,
             totalTimeLimit: template.duration * 60,
             isTemplate: true,
             templateId: template.id,
-            rootAssessmentId: template.id, // For official tests, the root ID is the template ID
+            rootAssessmentId: template.id,
         });
-        router.push(`/assessment/${template.id}`);
+        router.push(`/assessment/${newAssessmentId}`);
 
     } catch(error) {
         console.error("Error fetching questions for official assessment:", error);
@@ -242,7 +249,6 @@ export default function SkillAssessmentPage() {
         <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.1),rgba(255,255,255,0))]"></div>
         <div className="container mx-auto px-4 py-8 md:px-6 space-y-12">
           
-          {/* Official Assessments */}
           <div>
               <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
                   <h1 className="text-4xl font-bold flex items-center gap-3"><Sparkles className="text-primary"/> Official Assessments</h1>
@@ -293,7 +299,6 @@ export default function SkillAssessmentPage() {
           
           <Separator />
 
-          {/* Practice by Role */}
           <div>
               <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
                   <h2 className="text-3xl font-bold flex items-center gap-3"><BookCopy /> Practice by Role</h2>
@@ -309,6 +314,7 @@ export default function SkillAssessmentPage() {
                   >
                       {roles.map((role) => {
                         const isInProgress = !assessmentStore.assessment?.isTemplate && assessmentStore.assessment?.roleId === role.id;
+                        const latestAttempt = practiceAttempts.get(role.id);
                         return (
                           <motion.div key={role.id} variants={{ hidden: { y: 20, opacity: 0 }, show: { y: 0, opacity: 1 } }}>
                               <Card className="h-full bg-card/60 backdrop-blur-sm border-border/20 shadow-lg transition-all duration-300 hover:border-primary/60 hover:shadow-primary/10 hover:-translate-y-1 flex flex-col">
@@ -322,24 +328,35 @@ export default function SkillAssessmentPage() {
                                           {role.subSkills.map(skill => <Badge key={skill} variant="secondary">{skill}</Badge>)}
                                       </div>
                                   </CardContent>
-                                  <CardFooter>
-                                      <Button 
-                                          className="w-full mt-auto" 
-                                          variant={isInProgress ? "default" : "secondary"}
-                                          onClick={() => handleStartPractice(role.id, role.name)} 
-                                          disabled={isPending}
-                                      >
-                                          {isPending && generatingRoleId === role.id ? (
-                                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                          ) : isInProgress ? (
-                                              <RotateCcw className="mr-2 h-4 w-4" />
-                                          ) : null}
-                                          {isPending && generatingRoleId === role.id 
-                                              ? 'Generating...' 
-                                              : isInProgress 
-                                              ? 'Resume' 
-                                              : 'Start Practice'}
-                                      </Button>
+                                  <CardFooter className="flex-col gap-2">
+                                      {latestAttempt ? (
+                                        <>
+                                            <Button className="w-full" variant="outline" onClick={() => router.push(`/dashboard/assessments/${latestAttempt.docId}`)}>
+                                                <History className="mr-2 h-4 w-4" /> View Details
+                                            </Button>
+                                            <Button className="w-full" variant="secondary" onClick={() => handleStartPractice(role.id, role.name)} disabled={isPending}>
+                                                <RotateCcw className="mr-2 h-4 w-4" /> Retake Test
+                                            </Button>
+                                        </>
+                                      ) : (
+                                        <Button 
+                                            className="w-full mt-auto" 
+                                            variant={isInProgress ? "default" : "secondary"}
+                                            onClick={() => handleStartPractice(role.id, role.name)} 
+                                            disabled={isPending}
+                                        >
+                                            {isPending && generatingRoleId === role.id ? (
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            ) : isInProgress ? (
+                                                <Play className="mr-2 h-4 w-4" />
+                                            ) : null}
+                                            {isPending && generatingRoleId === role.id 
+                                                ? 'Generating...' 
+                                                : isInProgress 
+                                                ? 'Resume' 
+                                                : 'Start Practice'}
+                                        </Button>
+                                      )}
                                   </CardFooter>
                               </Card>
                           </motion.div>

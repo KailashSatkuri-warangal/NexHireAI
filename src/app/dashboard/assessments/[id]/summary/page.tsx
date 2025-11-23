@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, where, addDoc } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import type { AssessmentAttempt, AssessmentTemplate, Role, Question } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,7 +18,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { motion } from 'framer-motion';
 import { useAssessmentStore } from '@/hooks/use-assessment-store';
@@ -56,8 +55,19 @@ export default function AssessmentSummaryPage() {
                 }
                 const attemptData = { ...attemptDoc.data(), docId: attemptDoc.id } as AssessmentAttempt;
 
-                const roleDoc = await getDoc(doc(firestore, 'roles', attemptData.roleId));
-                const roleName = roleDoc.exists() ? (roleDoc.data() as Role).name : 'Unknown Role';
+                let roleName = 'Unknown Role';
+                // Try to get role name from template first for official assessments
+                if (attemptData.rootAssessmentId && attemptData.assessmentId !== attemptData.roleId) {
+                     const templateDoc = await getDoc(doc(firestore, 'assessments', attemptData.rootAssessmentId));
+                     if (templateDoc.exists()) {
+                         roleName = (templateDoc.data() as AssessmentTemplate).name;
+                     }
+                } else if (attemptData.roleId) { // Fallback to role document for practice tests
+                    const roleDoc = await getDoc(doc(firestore, 'roles', attemptData.roleId));
+                    if (roleDoc.exists()) {
+                         roleName = (roleDoc.data() as Role).name;
+                    }
+                }
 
                 setAttempt({ ...attemptData, roleName });
             } catch (error) {
@@ -77,7 +87,7 @@ export default function AssessmentSummaryPage() {
             try {
                 let newAssessment;
                 // If it was an official template-based assessment, use the root ID
-                if (attempt.rootAssessmentId && attempt.assessmentId === attempt.rootAssessmentId) {
+                if (attempt.rootAssessmentId && attempt.assessmentId !== attempt.roleId) {
                     const templateDoc = await getDoc(doc(firestore, 'assessments', attempt.rootAssessmentId));
                     if (!templateDoc.exists()) throw new Error("Original assessment template not found.");
                     
@@ -90,28 +100,29 @@ export default function AssessmentSummaryPage() {
                         questions.push(...questionsSnap.docs.map(d => ({id: d.id, ...d.data()} as Question)));
                     }
                     const orderedQuestions = template.questionIds.map(id => questions.find(q => q.id === id)).filter(Boolean) as Question[];
-
+                    
+                    const newId = uuidv4();
                     newAssessment = {
-                        id: uuidv4(), // Generate a NEW id for the assessment instance to avoid conflicts
+                        id: newId,
                         roleId: template.roleId,
                         roleName: template.name,
                         questions: orderedQuestions,
                         totalTimeLimit: template.duration * 60,
                         isTemplate: true,
                         templateId: template.id,
-                        rootAssessmentId: attempt.rootAssessmentId, // Carry over the root ID
+                        rootAssessmentId: attempt.rootAssessmentId,
                     };
+                     router.push(`/assessment/${newId}`);
                 } else {
                     // It was a practice assessment, so generate a new one for the same role
                     toast({ title: 'Generating New Practice Test...' });
                     newAssessment = await generateAssessment(attempt.roleId);
-                    // For practice tests, the root ID should be the role ID
                     newAssessment.rootAssessmentId = attempt.roleId;
+                    router.push(`/assessment/${newAssessment.id}`);
                 }
                 
                 assessmentStore.setAssessment(newAssessment);
                 toast({ title: 'New Test Ready!', description: `Your test for ${attempt.roleName} is about to begin.` });
-                router.push(`/assessment/${newAssessment.id}`);
 
             } catch (error) {
                 toast({ title: 'Failed to Start Retake', description: (error as Error).message, variant: 'destructive' });
@@ -166,7 +177,7 @@ export default function AssessmentSummaryPage() {
                                 </AlertDialogFooter>
                             </AlertDialogContent>
                         </AlertDialog>
-                        <Button variant="ghost" onClick={() => router.push('/dashboard/assessments')}>
+                        <Button variant="ghost" onClick={() => router.push('/skill-assessment')}>
                             <ArrowLeft className="mr-2 h-4 w-4" /> Back to All Assessments
                         </Button>
                     </CardFooter>
