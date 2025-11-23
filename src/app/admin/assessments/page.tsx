@@ -1,7 +1,7 @@
 
 'use client';
 import { useState, useEffect } from 'react';
-import { collection, getDocs, query, onSnapshot, deleteDoc, doc, writeBatch, where, addDoc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, query, onSnapshot, deleteDoc, doc, writeBatch, where, addDoc, updateDoc, collectionGroup } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -42,7 +42,7 @@ export default function AssessmentsPage() {
     const { toast } = useToast();
     const [assessments, setAssessments] = useState<AssessmentTemplate[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [stats, setStats] = useState({ total: 0, active: 0, avgTime: 0 });
+    const [stats, setStats] = useState({ total: 0, active: 0, avgTime: 0, avgScore: 0 });
     const [dialogOpen, setDialogOpen] = useState(false);
     const [selectedForDelete, setSelectedForDelete] = useState<AssessmentTemplate | null>(null);
 
@@ -50,7 +50,7 @@ export default function AssessmentsPage() {
         if (!firestore) return;
         setIsLoading(true);
         const q = query(collection(firestore, 'assessments'));
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const unsubscribe = onSnapshot(q, async (querySnapshot) => {
             const assessmentData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AssessmentTemplate));
             setAssessments(assessmentData);
 
@@ -58,10 +58,17 @@ export default function AssessmentsPage() {
             const totalDuration = activeAssessments.reduce((acc, a) => acc + (a.duration || 0), 0);
             const avgTime = activeAssessments.length > 0 ? Math.round(totalDuration / activeAssessments.length) : 0;
             
+            // Fetch all attempts to calculate average score
+            const attemptsQuery = query(collectionGroup(firestore, 'assessments'));
+            const attemptsSnap = await getDocs(attemptsQuery);
+            const totalScore = attemptsSnap.docs.reduce((acc, doc) => acc + (doc.data().finalScore || 0), 0);
+            const avgScore = attemptsSnap.size > 0 ? Math.round(totalScore / attemptsSnap.size) : 0;
+
             setStats({
                 total: assessmentData.length,
                 active: activeAssessments.length,
-                avgTime: avgTime
+                avgTime: avgTime,
+                avgScore: avgScore
             });
             setIsLoading(false);
         }, (error) => {
@@ -297,7 +304,7 @@ export default function AssessmentsPage() {
                 <motion.div variants={itemVariants}><StatCard icon={<NotebookPen />} title="Total Templates" value={stats.total} /></motion.div>
                 <motion.div variants={itemVariants}><StatCard icon={<CheckCircle />} title="Active Templates" value={stats.active} /></motion.div>
                 <motion.div variants={itemVariants}><StatCard icon={<Clock />} title="Avg. Duration" value={`${stats.avgTime} min`} /></motion.div>
-                <motion.div variants={itemVariants}><StatCard icon={<BarChart />} title="Avg. Candidate Score" value="72%" /></motion.div>
+                <motion.div variants={itemVariants}><StatCard icon={<BarChart />} title="Avg. Candidate Score" value={stats.avgScore > 0 ? `${stats.avgScore}%` : 'N/A'} /></motion.div>
             </motion.div>
 
             <Card className="bg-card/60 backdrop-blur-sm border-border/20 shadow-lg">
