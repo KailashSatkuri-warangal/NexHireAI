@@ -40,11 +40,15 @@ const runCodeFlow = ai.defineFlow(
   async (input) => {
     
     try {
-        const { output } = await ai.generate({
+        const { output: aiResults } = await ai.generate({
           prompt: `You are a code execution engine simulator. Your task is to evaluate a single code submission against its test cases and return a structured JSON object containing the results.
 
           **Special Instructions for Markdown:**
-          If the language is 'markdown', the 'code' is the content itself. You must evaluate if the user's 'code' is semantically identical to the test case's 'expectedOutput'. A 'Passed' status means the content is the same, ignoring minor whitespace differences in the raw text. The 'output' field in your response should be the raw markdown from the user's code, not a rendered version.
+          If the language is 'markdown' (case-insensitive), you must follow this procedure:
+          1. Treat the user's 'code' and the test case's 'expectedOutput' as Markdown.
+          2. Imagine rendering BOTH to HTML.
+          3. If the rendered HTML would be semantically identical (same structure, content, and meaning), you MUST set the status to "Passed". This is true even if the raw Markdown text uses different line breaks, list styles (* vs -), or spacing.
+          4. For the 'output' field in your JSON response for Markdown, return an EMPTY STRING. The calling code will handle populating this field.
 
           **General Instructions:**
           - For each test case, determine if the code's output matches the expected output.
@@ -65,11 +69,20 @@ const runCodeFlow = ai.defineFlow(
          }
         });
 
-        if (!output) {
+        if (!aiResults) {
             throw new Error("AI failed to return an output.");
         }
         
-        return output;
+        // Post-process to ensure user's raw markdown is preserved in the output
+        return aiResults.map((result, index) => {
+            const isMarkdown = input.language.toLowerCase().trim() === 'markdown';
+            return {
+                ...result,
+                output: isMarkdown ? input.code : result.output,
+                expectedOutput: input.testCases[index].expectedOutput,
+            };
+        });
+
     } catch (error) {
         console.error("AI evaluation in runCodeFlow failed:", error);
         // Provide a graceful fallback if the model completely fails to evaluate a submission
@@ -85,5 +98,9 @@ const runCodeFlow = ai.defineFlow(
 );
 
 export async function runCode(input: RunCodeInput): Promise<RunCodeOutput> {
-  return runCodeFlow(input);
+  const processedInput = {
+    ...input,
+    language: input.language.toLowerCase().trim(),
+  }
+  return runCodeFlow(processedInput);
 }
