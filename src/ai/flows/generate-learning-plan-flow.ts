@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A flow to generate a personalized learning plan.
@@ -49,11 +50,11 @@ const prompt = ai.definePrompt({
     **Your Task:**
     Generate a list of exactly 6 high-quality, real, and publicly accessible learning resources.
     
-    **Instructions:**
-    - Provide a mix of 3 video (YouTube) and 3 article (Medium, dev.to, official docs, etc.) resources.
+    **CRITICAL INSTRUCTIONS:**
+    - You MUST provide a mix of 3 video (from YouTube) and 3 article (from sources like official documentation, well-known technical blogs like Smashing Magazine, dev.to, CSS-Tricks, or freeCodeCamp) resources.
+    - All URLs MUST be real, valid, and lead directly to the content. Do NOT invent or hallucinate URLs. Double-check that the URLs are likely to be correct and active. For example, a YouTube video URL should look like "https://www.youtube.com/watch?v=...". An article URL should be a direct link to a blog post.
     - The resources should be relevant to the user's stated skills, aiming to deepen their knowledge or introduce adjacent, valuable skills.
     - For each resource, provide a valid title, type, a real URL, a one-sentence description, and the primary skill it relates to.
-    - Ensure all URLs are valid and lead directly to the content.
     - Adhere strictly to the JSON output format.
     `,
 });
