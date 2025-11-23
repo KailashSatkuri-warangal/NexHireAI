@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useTransition, useRef } from 'react';
@@ -119,7 +120,6 @@ const AssessmentRunner = () => {
       
       const finalResponses = Object.values(responses);
 
-      // Create a lightweight snapshot of the questions
       const questionSnapshots = assessment.questions.map(q => ({
           id: q.id,
           questionText: q.questionText,
@@ -133,7 +133,7 @@ const AssessmentRunner = () => {
       }));
 
       const attemptShell: AssessmentAttempt = {
-          id: assessment.id, // Temporary ID
+          id: assessment.id, // This is the template/practice ID, not the doc ID
           userId: user.id,
           assessmentId: assessment.id,
           roleId: assessment.roleId,
@@ -141,7 +141,7 @@ const AssessmentRunner = () => {
           submittedAt: Date.now(),
           responses: finalResponses,
           questions: assessment.questions, // Pass full questions for scoring
-          rootAssessmentId: assessment.isTemplate ? assessment.templateId : assessment.roleId,
+          rootAssessmentId: assessment.rootAssessmentId || assessment.roleId, // Use root or role ID
       };
 
       try {
@@ -149,14 +149,16 @@ const AssessmentRunner = () => {
           const { questions, ...attemptToSave } = finalAttempt;
 
           const assessmentsCollectionRef = collection(firestore, `users/${user.id}/assessments`);
+          // Use addDoc to get a unique auto-generated ID for this attempt
           const newAttemptDocRef = await addDoc(assessmentsCollectionRef, {
               ...attemptToSave,
-              questionSnapshots, // Save the snapshots
+              questionSnapshots, // Save the snapshots for historical accuracy
               userId: user.id,
           });
           
           toast({ title: "Assessment Submitted!", description: "Redirecting to your results summary." });
           reset();
+          // Redirect to the results page using the NEW, UNIQUE document ID
           router.push(`/dashboard/assessments/${newAttemptDocRef.id}`);
 
       } catch (error) {

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useAuth } from '@/hooks/use-auth';
@@ -36,7 +37,7 @@ export default function AssessmentsPage() {
         const attemptsData = await Promise.all(querySnapshot.docs.map(async (docSnapshot) => {
           const attempt = { id: docSnapshot.id, ...docSnapshot.data() } as AssessmentAttempt;
           let roleName = 'Unknown Role';
-          // Ensure roleId exists before trying to fetch role
+          
           if (attempt.roleId) {
             const roleDocRef = doc(firestore, 'roles', attempt.roleId);
             const roleDoc = await getDoc(roleDocRef);

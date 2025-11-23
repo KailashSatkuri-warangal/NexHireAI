@@ -1,3 +1,4 @@
+
 'use client';
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -78,11 +79,13 @@ export default function AssessmentResultPage() {
     const getDetailedAttempt = async (attemptData: AssessmentAttempt): Promise<AttemptWithDetails> => {
         let roleName = 'Unknown Role';
         if (attemptData.roleId) {
-            const roleDocRef = doc(firestore, 'roles', attemptData.roleId);
-            const roleDoc = await getDoc(roleDocRef);
-            if (roleDoc.exists()) {
-                 roleName = (roleDoc.data() as Role).name;
-            }
+            try {
+                const roleDocRef = doc(firestore, 'roles', attemptData.roleId);
+                const roleDoc = await getDoc(roleDocRef);
+                if (roleDoc.exists()) {
+                    roleName = (roleDoc.data() as Role).name;
+                }
+            } catch (e) { console.error("Could not fetch role name", e) }
         }
         
         let questionsWithAnswers: (Question & UserResponse)[] = [];
