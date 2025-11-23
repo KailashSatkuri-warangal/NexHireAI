@@ -64,25 +64,19 @@ export default function LeaderboardPage() {
 
             let attempts: AssessmentAttempt[] = [];
             if (cohortData.assignedAssessmentId) {
-                // NEW STRATEGY: Fetch attempts directly for each user.
-                const attemptPromises = cohortData.candidateIds.map(userId => 
-                    getDoc(doc(firestore, `users/${userId}/assessments`, cohortData.assignedAssessmentId!))
+                // Correctly fetch all attempts for this specific cohort and assessment template
+                 const attemptsQuery = query(
+                    collectionGroup(firestore, 'assessments'),
+                    where('rootAssessmentId', '==', cohortData.assignedAssessmentId),
+                    where('userId', 'in', cohortData.candidateIds)
                 );
-                const attemptDocs = await Promise.all(attemptPromises);
-                attempts = attemptDocs
-                    .filter(d => d.exists())
-                    .map(d => ({ id: d.id, ...d.data() } as AssessmentAttempt));
+                const attemptsSnap = await getDocs(attemptsQuery);
+                attempts = attemptsSnap.docs.map(d => ({ id: d.id, ...d.data() } as AssessmentAttempt));
             }
             
             const entries = users.map(user => {
                 const userAttempt = attempts.find(a => a.userId === user.id);
-                let status: ExtendedCandidateStatus;
-
-                if (!userAttempt && cohortData.assignedAssessmentId) {
-                    status = 'Yet to Take';
-                } else {
-                    status = (cohortData.statuses && cohortData.statuses[user.id]) || 'Shortlisted';
-                }
+                const status: ExtendedCandidateStatus = (cohortData.statuses && cohortData.statuses[user.id]) || (userAttempt ? 'Shortlisted' : 'Yet to Take');
                 
                 return { user, attempt: userAttempt, status };
             });
@@ -238,4 +232,3 @@ export default function LeaderboardPage() {
         </div>
     );
 }
-
