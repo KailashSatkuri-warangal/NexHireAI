@@ -1,10 +1,9 @@
-
 'use client';
 
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { collection, query, orderBy, onSnapshot, Query, getDoc, doc } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, doc, getDoc } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
 import { motion } from 'framer-motion';
@@ -28,24 +27,34 @@ export default function AssessmentsPage() {
   useEffect(() => {
     if (!user || !firestore) return;
 
-    const attemptsQuery: Query = query(collection(firestore, 'users', user.id, 'assessments'), orderBy('submittedAt', 'desc'));
-    
-    const unsubscribe = onSnapshot(attemptsQuery, async (querySnapshot) => {
-      const attemptsData = await Promise.all(querySnapshot.docs.map(async (docSnapshot) => {
-        const attempt = { id: docSnapshot.id, ...docSnapshot.data() } as AssessmentAttempt;
-        const roleDocRef = doc(firestore, 'roles', attempt.roleId);
-        const roleDoc = await getDoc(roleDocRef);
-        const roleName = roleDoc.exists() ? (roleDoc.data() as Role).name : 'Unknown Role';
-        return { ...attempt, roleName };
-      }));
-      setAttempts(attemptsData);
-      setIsFetching(false);
-    }, (error) => {
-      console.error("Error fetching assessment attempts:", error);
-      setIsFetching(false);
-    });
+    const fetchAttempts = async () => {
+      setIsFetching(true);
+      try {
+        const attemptsQuery = query(collection(firestore, 'users', user.id, 'assessments'), orderBy('submittedAt', 'desc'));
+        const querySnapshot = await getDocs(attemptsQuery);
+        
+        const attemptsData = await Promise.all(querySnapshot.docs.map(async (docSnapshot) => {
+          const attempt = { id: docSnapshot.id, ...docSnapshot.data() } as AssessmentAttempt;
+          // Ensure roleId exists before trying to fetch role
+          if (!attempt.roleId) {
+            console.warn(`Attempt ${attempt.id} is missing a roleId.`);
+            return { ...attempt, roleName: 'Unknown Role' };
+          }
+          const roleDocRef = doc(firestore, 'roles', attempt.roleId);
+          const roleDoc = await getDoc(roleDocRef);
+          const roleName = roleDoc.exists() ? (roleDoc.data() as Role).name : 'Unknown Role';
+          return { ...attempt, roleName };
+        }));
 
-    return () => unsubscribe();
+        setAttempts(attemptsData);
+      } catch (error) {
+        console.error("Error fetching assessment attempts:", error);
+      } finally {
+        setIsFetching(false);
+      }
+    };
+    
+    fetchAttempts();
   }, [user, firestore]);
 
   const containerVariants = {
@@ -108,7 +117,7 @@ export default function AssessmentsPage() {
                         <CardHeader>
                             <CardTitle className="text-xl">{attempt.roleName}</CardTitle>
                             <CardDescription>
-                                Taken on {new Date(attempt.submittedAt!).toLocaleDateString()}
+                                {attempt.submittedAt ? `Taken on ${new Date(attempt.submittedAt).toLocaleDateString()}` : 'Date not available'}
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="flex-grow flex items-center justify-center">
@@ -118,13 +127,13 @@ export default function AssessmentsPage() {
                                     <motion.path 
                                         className="text-primary" stroke="currentColor" strokeWidth="3" fill="none" strokeLinecap="round"
                                         initial={{ strokeDasharray: `0, 100` }}
-                                        animate={{ strokeDasharray: `${attempt.finalScore}, 100` }}
+                                        animate={{ strokeDasharray: `${attempt.finalScore || 0}, 100` }}
                                         transition={{ duration: 1, ease: "easeInOut" }}
                                         d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" 
                                     />
                                 </svg>
                                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                    <span className="text-2xl font-bold">{Math.round(attempt.finalScore!)}</span>
+                                    <span className="text-2xl font-bold">{Math.round(attempt.finalScore || 0)}</span>
                                     <span className="text-xs text-muted-foreground">Score</span>
                                 </div>
                             </div>
