@@ -44,7 +44,7 @@ const runCodeFlow = ai.defineFlow(
           prompt: `You are a code execution engine simulator. Your task is to evaluate a single code submission against its test cases and return a structured JSON object containing the results.
 
           **Special Instructions for Markdown:**
-          If the language is 'markdown', the 'code' is the content itself. To evaluate correctness, you must first render both the user's 'code' and the test case's 'expectedOutput' as HTML. Then, compare the resulting HTML. A 'Passed' status means the rendered HTML is semantically identical, ignoring minor whitespace differences in the raw text. The 'output' field in your response should be the raw markdown from the user's code.
+          If the language is 'markdown', the 'code' is the content itself. You must evaluate if the user's 'code' is semantically identical to the test case's 'expectedOutput'. A 'Passed' status means the content is the same, ignoring minor whitespace differences in the raw text. The 'output' field in your response should be the raw markdown from the user's code, not a rendered version.
 
           **General Instructions:**
           - For each test case, determine if the code's output matches the expected output.
