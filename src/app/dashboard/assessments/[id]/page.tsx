@@ -1,4 +1,3 @@
-
 'use client';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -55,30 +54,30 @@ export default function AssessmentResultPage() {
                 }
                 
                 const initialAttemptData = { id: initialAttemptDoc.id, ...initialAttemptDoc.data() } as AssessmentAttempt;
-                if (!initialAttemptData.rootAssessmentId) {
-                     // This should not happen with the new logic, but handle as a graceful fallback.
-                    console.warn("Attempt is missing a `rootAssessmentId`. Displaying as a standalone result.");
+                
+                // If there's a rootAssessmentId, fetch all related attempts. Otherwise, just use this one.
+                if (initialAttemptData.rootAssessmentId) {
+                     const historyQuery = query(
+                        collection(firestore, 'users', user.id, 'assessments'),
+                        where('rootAssessmentId', '==', initialAttemptData.rootAssessmentId),
+                        orderBy('submittedAt', 'asc')
+                    );
+                    
+                    const historySnapshot = await getDocs(historyQuery);
+                    const historicalAttempts = await Promise.all(
+                        historySnapshot.docs.map(doc => getDetailedAttempt({ id: doc.id, ...doc.data() } as AssessmentAttempt))
+                    );
+
+                    setAllAttempts(historicalAttempts);
+                    const current = historicalAttempts.find(a => a.id === initialAttemptId) || historicalAttempts[historicalAttempts.length - 1];
+                    setCurrentAttempt(current);
+
+                } else {
+                    // This is a standalone attempt (likely an older one before the rootAssessmentId was added)
                     const detailedAttempt = await getDetailedAttempt(initialAttemptData);
                     setAllAttempts([detailedAttempt]);
                     setCurrentAttempt(detailedAttempt);
-                    return;
                 }
-                
-                // Fetch all attempts related by rootAssessmentId
-                const historyQuery = query(
-                    collection(firestore, 'users', user.id, 'assessments'),
-                    where('rootAssessmentId', '==', initialAttemptData.rootAssessmentId),
-                    orderBy('submittedAt', 'asc')
-                );
-                
-                const historySnapshot = await getDocs(historyQuery);
-                const historicalAttempts = await Promise.all(
-                    historySnapshot.docs.map(doc => getDetailedAttempt({ id: doc.id, ...doc.data() } as AssessmentAttempt))
-                );
-
-                setAllAttempts(historicalAttempts);
-                const current = historicalAttempts.find(a => a.id === initialAttemptId) || historicalAttempts[historicalAttempts.length - 1];
-                setCurrentAttempt(current);
 
             } catch (error) {
                 console.error("Error fetching assessment result history:", error);
@@ -135,7 +134,7 @@ export default function AssessmentResultPage() {
     const firstAttempt = allAttempts[0];
     const latestAttempt = allAttempts[allAttempts.length - 1];
 
-    const improvement = firstAttempt?.finalScore && latestAttempt?.finalScore
+    const improvement = firstAttempt?.finalScore && latestAttempt?.finalScore && allAttempts.length > 1
         ? Math.round(((latestAttempt.finalScore - firstAttempt.finalScore) / firstAttempt.finalScore) * 100)
         : 0;
 
@@ -309,3 +308,5 @@ const InfoCard = ({ title, value, className }: { title: string, value: string, c
         <p className={`text-3xl font-bold mt-2 ${className}`}>{value}</p>
     </Card>
 )
+
+    
