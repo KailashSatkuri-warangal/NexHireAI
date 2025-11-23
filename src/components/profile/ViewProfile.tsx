@@ -145,22 +145,26 @@ const ViewCandidateProfile = ({ profileData, onResumeUpload, isOwnProfile }: { p
 const ViewRecruiterProfile = ({ profileData }: { profileData: UserType }) => {
     const recruiterData = profileData.recruiterSpecific;
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-            <InfoSection icon={<Building />} label="Company Name" value={recruiterData?.companyName} />
-            <InfoSection icon={<Briefcase />} label="Designation" value={recruiterData?.designation} />
-            <InfoSection icon={<Phone />} label="Mobile" value={recruiterData?.mobileNumber} />
-            <InfoSection icon={<LinkIcon />} label="Company Website" value={recruiterData?.companyWebsite} isLink />
-            <InfoSection icon={<Calendar />} label="Years of Experience" value={recruiterData?.yearsOfExperience?.toString()} />
-            <div className="md:col-span-2">
-                 <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2 mb-2"><Target className="h-4 w-4" /> Hiring Focus</h3>
-                {recruiterData?.hiringFocus && recruiterData.hiringFocus.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                        {recruiterData.hiringFocus.map(focus => <Badge key={focus} variant="secondary">{focus}</Badge>)}
-                    </div>
-                ) : <p className="text-foreground/60 italic">Not specified.</p>}
+        <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                <InfoSection icon={<Building />} label="Company Name" value={recruiterData?.companyName} />
+                <InfoSection icon={<Briefcase />} label="Designation" value={recruiterData?.designation} />
+                <InfoSection icon={<Phone />} label="Mobile" value={recruiterData?.mobileNumber} />
+                <InfoSection icon={<LinkIcon />} label="Company Website" value={recruiterData?.companyWebsite} isLink />
+                <InfoSection icon={<Calendar />} label="Years of Experience" value={recruiterData?.yearsOfExperience?.toString()} />
+                <div className="md:col-span-2">
+                     <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2 mb-2"><Target className="h-4 w-4" /> Hiring Focus</h3>
+                    {recruiterData?.hiringFocus && recruiterData.hiringFocus.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                            {recruiterData.hiringFocus.map(focus => <Badge key={focus} variant="secondary">{focus}</Badge>)}
+                        </div>
+                    ) : <p className="text-foreground/60 italic">Not specified.</p>}
+                </div>
             </div>
-            <div className="md:col-span-2">
+            <div className="flex flex-wrap gap-4 items-center">
                 <SocialLink icon={<Linkedin />} href={profileData.linkedinUrl} label="LinkedIn" />
+                <SocialLink icon={<GitBranch />} href={profileData.githubUrl} label="GitHub" />
+                <SocialLink icon={<Globe />} href={profileData.portfolioUrl} label="Portfolio" />
             </div>
         </div>
     );
