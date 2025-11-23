@@ -18,6 +18,17 @@ import { generateAssessment } from '@/ai/flows/generate-assessment-flow';
 import { useAssessmentStore } from '@/hooks/use-assessment-store';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export default function SkillAssessmentPage() {
   const { user, isLoading: authIsLoading } = useAuth();
@@ -200,9 +211,27 @@ export default function SkillAssessmentPage() {
                          <Button className="w-full" onClick={() => router.push(`/assessment/${assessmentStore.assessment?.id}`)}>
                             <Play className="mr-2 h-4 w-4" /> Resume Test
                         </Button>
-                        <Button variant="destructive" className="w-full" onClick={() => assessmentStore.reset()}>
-                            <Trash2 className="mr-2 h-4 w-4" /> Discard & Restart
-                        </Button>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive" className="w-full">
+                                    <Trash2 className="mr-2 h-4 w-4" /> Discard & Restart
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This action cannot be undone. This will permanently delete your current assessment progress.
+                                </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => assessmentStore.reset()}>
+                                    Yes, Discard
+                                </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
                     </CardFooter>
                 </Card>
             </motion.div>
