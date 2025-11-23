@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal, PlusCircle, NotebookPen, CheckCircle, BarChart, Clock, Loader2, FileJson, BrainCircuit, Trash2, Pencil, Copy, PowerOff, Upload, Download, Power } from 'lucide-react';
 import { motion } from 'framer-motion';
-import type { AssessmentTemplate, Question } from '@/lib/types';
+import type { AssessmentTemplate, Question, AssessmentAttempt } from '@/lib/types';
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import {
@@ -58,11 +58,23 @@ export default function AssessmentsPage() {
             const totalDuration = activeAssessments.reduce((acc, a) => acc + (a.duration || 0), 0);
             const avgTime = activeAssessments.length > 0 ? Math.round(totalDuration / activeAssessments.length) : 0;
             
-            // Fetch all attempts to calculate average score
-            const attemptsQuery = query(collectionGroup(firestore, 'assessments'));
-            const attemptsSnap = await getDocs(attemptsQuery);
-            const totalScore = attemptsSnap.docs.reduce((acc, doc) => acc + (doc.data().finalScore || 0), 0);
-            const avgScore = attemptsSnap.size > 0 ? Math.round(totalScore / attemptsSnap.size) : 0;
+            // Fetch all attempts and filter to only include those that match our official assessment templates
+            const templateIds = assessmentData.map(t => t.id);
+            let avgScore = 0;
+            if (templateIds.length > 0) {
+                const attemptsGroupRef = collectionGroup(firestore, 'assessments');
+                const attemptsSnap = await getDocs(attemptsGroupRef);
+                
+                const officialAttempts = attemptsSnap.docs
+                    .map(doc => doc.data() as AssessmentAttempt)
+                    .filter(attempt => attempt.rootAssessmentId && templateIds.includes(attempt.rootAssessmentId));
+
+                if (officialAttempts.length > 0) {
+                    const totalScore = officialAttempts.reduce((acc, attempt) => acc + (attempt.finalScore || 0), 0);
+                    avgScore = Math.round(totalScore / officialAttempts.length);
+                }
+            }
+
 
             setStats({
                 total: assessmentData.length,
