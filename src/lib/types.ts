@@ -1,6 +1,5 @@
 
 
-
 export type RoleType = 'candidate' | 'recruiter' | 'admin';
 
 export interface Role {
@@ -53,6 +52,7 @@ export interface Assessment {
     totalTimeLimit: number; // in seconds
     isTemplate: boolean;
     templateId?: string;
+    rootAssessmentId?: string; // For tracking retakes
 }
 
 export interface AssessmentTemplate {
@@ -77,11 +77,12 @@ export type CandidateStatus = 'Shortlisted' | 'Under Review' | 'Hired' | 'Reject
 export interface AssessmentAttempt {
     id: string;
     userId: string;
-    assessmentId: string; // The ID of the AssessmentTemplate
+    assessmentId: string; // The ID of the AssessmentTemplate or original practice assessment ID
     roleId: string;
     startedAt: number; // timestamp
     submittedAt?: number; // timestamp
     responses: UserResponse[];
+    rootAssessmentId?: string; // ID to group all attempts of the same assessment
     // --- Post-Submission Fields ---
     finalScore?: number;
     skillScores?: Record<string, number | 'Not available'>; 
@@ -205,5 +206,3 @@ export interface Notification {
     isRead: boolean;
     createdAt: number;
 }
-
-    

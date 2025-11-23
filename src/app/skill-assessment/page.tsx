@@ -289,9 +289,10 @@ export default function SkillAssessmentPage() {
                                 <CardDescription>{role.description}</CardDescription>
                             </CardHeader>
                             <CardContent className="flex-grow">
-                                <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
-                                    {role.subSkills?.map(skill => <li key={skill}>{skill}</li>)}
-                                </ul>
+                                <h4 className="text-sm font-semibold mb-2">Key Skills:</h4>
+                                <div className="flex flex-wrap gap-1">
+                                    {role.subSkills.map(skill => <Badge key={skill} variant="secondary">{skill}</Badge>)}
+                                </div>
                             </CardContent>
                              <CardFooter>
                                 <Button 

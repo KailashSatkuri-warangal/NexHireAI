@@ -93,12 +93,13 @@ const AssessmentRunner = () => {
       const attemptShell: AssessmentAttempt = {
           id: assessment.id, // Temporary ID, will be replaced by Firestore's generated ID
           userId: user.id,
-          assessmentId: assessment.id, // Original assessment ID
+          assessmentId: assessment.isTemplate ? assessment.templateId! : assessment.id,
           roleId: assessment.roleId,
           startedAt: startTime,
           submittedAt: Date.now(),
           responses: finalResponses,
           questions: assessment.questions, // Pass questions for scoring context
+          rootAssessmentId: assessment.rootAssessmentId || (assessment.isTemplate ? assessment.templateId! : assessment.id),
       };
 
       try {
@@ -114,9 +115,9 @@ const AssessmentRunner = () => {
               userId: user.id, // ensure userId is present
           });
           
-          toast({ title: "Assessment Submitted!", description: "Your results are now available on your dashboard." });
+          toast({ title: "Assessment Submitted!", description: "Redirecting to your results summary." });
           reset();
-          router.push(`/dashboard/assessments/${newAttemptDocRef.id}`);
+          router.push(`/dashboard/assessments/${newAttemptDocRef.id}/summary`);
 
       } catch (error) {
           console.error("Error submitting and scoring assessment:", error);
