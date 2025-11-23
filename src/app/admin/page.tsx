@@ -39,13 +39,11 @@ type ActivityItem = {
 
 const getTimestamp = (timestamp: any): number => {
     if (!timestamp) return 0;
-    // Handle server-generated Timestamps (e.g., from serverTimestamp())
-    if (timestamp && typeof timestamp.seconds === 'number') {
-        return timestamp.seconds * 1000;
-    }
-    // Handle client-generated numbers (e.g., from Date.now())
     if (typeof timestamp === 'number') {
         return timestamp;
+    }
+    if (timestamp && typeof timestamp.seconds === 'number') {
+        return timestamp.seconds * 1000;
     }
     return 0;
 };
@@ -57,7 +55,6 @@ export default function AdminHomePage() {
   
   const [stats, setStats] = useState({ candidates: 0, activeAssessments: 0, roles: 0 });
   const [chartData, setChartData] = useState<{name: string, Candidates: number}[]>([]);
-  const [activityFeed, setActivityFeed] = useState<ActivityItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -101,62 +98,6 @@ export default function AdminHomePage() {
             });
             setChartData(Object.entries(monthlyData).map(([name, values]) => ({ name, ...values })));
             
-            // --- ACTIVITY FEED (REFACTORED) ---
-            const newCandidatesQuery = query(collection(firestore, 'users'), where('role', '==', 'candidate'), orderBy('createdAt', 'desc'), limit(5));
-            const recentAttemptsQuery = query(collectionGroup(firestore, 'assessments'), orderBy('submittedAt', 'desc'), limit(5));
-            
-            const [newCandidatesSnap, recentAttemptsSnap] = await Promise.all([
-                getDocs(newCandidatesQuery),
-                getDocs(recentAttemptsQuery),
-            ]);
-
-            const candidateActivities: ActivityItem[] = newCandidatesSnap.docs
-                .map(doc => {
-                    const candidate = doc.data() as UserType;
-                    const timestamp = getTimestamp(candidate.createdAt);
-                    if (!timestamp) return null;
-                    return {
-                        type: 'new_candidate',
-                        text: `${candidate.name} signed up.`,
-                        subtext: 'New candidate joined the talent pool.',
-                        timestamp: timestamp,
-                        icon: <UserCheck className="h-5 w-5" />,
-                        avatarUrl: candidate.avatarUrl,
-                        avatarFallback: candidate.name.charAt(0)
-                    };
-                }).filter(Boolean) as ActivityItem[];
-            
-            const assessmentActivities: ActivityItem[] = [];
-            for (const attemptDoc of recentAttemptsSnap.docs) {
-                const attempt = attemptDoc.data() as AssessmentAttempt;
-                const timestamp = getTimestamp(attempt.submittedAt);
-                if (!attempt.userId || !timestamp) continue;
-
-                // Fetch the user data for this attempt
-                const userDoc = await getDoc(doc(firestore, 'users', attempt.userId));
-                if (!userDoc.exists()) continue;
-                const userData = userDoc.data() as UserType;
-
-                // Fetch the role name
-                const roleDoc = await getDoc(doc(firestore, 'roles', attempt.roleId));
-                const roleName = roleDoc.exists() ? (roleDoc.data() as Role).name : 'an assessment';
-
-                assessmentActivities.push({
-                    type: 'assessment_completed',
-                    text: `${userData.name} completed the ${roleName} assessment.`,
-                    subtext: `Scored ${Math.round(attempt.finalScore!)}%`,
-                    timestamp: timestamp,
-                    icon: <NotebookPen className="h-5 w-5" />,
-                    avatarUrl: userData.avatarUrl,
-                    avatarFallback: userData.name.charAt(0)
-                });
-            }
-            
-            const combinedActivities = [...candidateActivities, ...assessmentActivities]
-                .sort((a, b) => b.timestamp - a.timestamp)
-                .slice(0, 5);
-
-            setActivityFeed(combinedActivities);
 
         } catch (error) {
             console.error("Failed to fetch admin dashboard data:", error);
@@ -237,9 +178,9 @@ export default function AdminHomePage() {
          variants={containerVariants}
          initial="hidden"
          animate="visible"
-         className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6"
+         className="mt-6 grid grid-cols-1 gap-6"
        >
-        <motion.div variants={itemVariants} className="lg:col-span-2">
+        <motion.div variants={itemVariants}>
             <Card className="bg-card/60 backdrop-blur-sm border-border/20 shadow-lg">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2"><BarChart /> Candidate Growth</CardTitle>
@@ -261,35 +202,6 @@ export default function AdminHomePage() {
                             <Area type="monotone" dataKey="Candidates" stroke="hsl(var(--primary))" fillOpacity={1} fill="url(#colorCandidates)" />
                         </AreaChart>
                     </ResponsiveContainer>
-                </CardContent>
-            </Card>
-        </motion.div>
-        <motion.div variants={itemVariants}>
-            <Card className="bg-card/60 backdrop-blur-sm border-border/20 shadow-lg">
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><Activity /> Recent Activity</CardTitle>
-                    <CardDescription>Latest platform events.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {activityFeed.length > 0 ? (
-                      activityFeed.map((item, index) => (
-                          <div key={index} className="flex items-center gap-4">
-                                <Avatar className="h-9 w-9">
-                                    <AvatarImage src={item.avatarUrl} />
-                                    <AvatarFallback>{item.avatarFallback}</AvatarFallback>
-                                </Avatar>
-                                <div className="grid gap-1">
-                                    <p className="text-sm font-medium leading-none">{item.text}</p>
-                                    <p className="text-sm text-muted-foreground">{item.subtext}</p>
-                                </div>
-                                <div className="ml-auto text-xs text-muted-foreground">
-                                    {formatDistanceToNow(new Date(item.timestamp), { addSuffix: true })}
-                                </div>
-                          </div>
-                      ))
-                  ) : (
-                    <p className="text-sm text-center text-muted-foreground py-8">No recent activity.</p>
-                  )}
                 </CardContent>
             </Card>
         </motion.div>

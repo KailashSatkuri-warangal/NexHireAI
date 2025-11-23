@@ -16,7 +16,6 @@ const adminNavItems = [
   { href: "/admin/candidates", icon: <Users />, label: "Candidates" },
   { href: "/admin/assessments", icon: <NotebookPen />, label: "Assessments" },
   { href: "/admin/roles", icon: <ShieldCheck />, label: "Roles & Skills" },
-  { href: "/admin/analytics", icon: <BarChart />, label: "Analytics" },
   { href: "/admin/pipeline", icon: <FolderKanban />, label: "Pipeline" },
 ];
 
