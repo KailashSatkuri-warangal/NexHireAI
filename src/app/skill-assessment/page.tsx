@@ -10,7 +10,7 @@ import { initializeFirebase } from '@/firebase';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
-import { Loader2, BookCopy, Sparkles, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Loader2, BookCopy, Sparkles, AlertTriangle, CheckCircle, Play, Trash2 } from 'lucide-react';
 import type { Role, AssessmentTemplate, Question, Cohort, AssessmentAttempt } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { populateRoles } from '@/ai/flows/populate-roles-flow';
@@ -171,7 +171,7 @@ export default function SkillAssessmentPage() {
     }
   }
 
-  if (authIsLoading || isLoading || isPopulating) {
+  if (authIsLoading || isLoading || isPopulating || !assessmentStore.isHydrated) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-10rem)]">
         <Loader2 className="h-8 w-8 animate-spin mb-4" />
@@ -181,6 +181,35 @@ export default function SkillAssessmentPage() {
       </div>
     );
   }
+  
+  if (assessmentStore.assessment) {
+    return (
+        <div className="relative min-h-[calc(100vh-5rem)] w-full bg-secondary flex items-center justify-center p-4">
+             <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.1),rgba(255,255,255,0))]"></div>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
+                <Card className="max-w-lg bg-card/70 backdrop-blur-sm border-border/20 shadow-xl">
+                    <CardHeader>
+                        <CardTitle>Assessment in Progress</CardTitle>
+                        <CardDescription>You have an unfinished assessment for:</CardDescription>
+                         <p className="text-lg font-semibold text-primary pt-2">{assessmentStore.assessment.roleName}</p>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-sm text-muted-foreground">You can resume where you left off or discard this attempt and start a new one.</p>
+                    </CardContent>
+                    <CardFooter className="flex gap-4">
+                         <Button className="w-full" onClick={() => router.push(`/assessment/${assessmentStore.assessment?.id}`)}>
+                            <Play className="mr-2 h-4 w-4" /> Resume Test
+                        </Button>
+                        <Button variant="destructive" className="w-full" onClick={() => assessmentStore.reset()}>
+                            <Trash2 className="mr-2 h-4 w-4" /> Discard & Restart
+                        </Button>
+                    </CardFooter>
+                </Card>
+            </motion.div>
+        </div>
+    )
+  }
+
 
   return (
     <div className="relative min-h-[calc(100vh-5rem)] w-full bg-secondary">
