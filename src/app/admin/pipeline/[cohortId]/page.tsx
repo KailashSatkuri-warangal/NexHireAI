@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { collection, query, onSnapshot, getDoc, doc, where, getDocs, writeBatch, updateDoc, collectionGroup, setDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, getDoc, doc, where, getDocs, writeBatch, updateDoc, setDoc } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import type { Cohort, User, AssessmentAttempt, CandidateStatus } from '@/lib/types';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Crown, Medal, Gem, Users, Eye } from 'lucide-react';
+import { Loader2, ArrowLeft, Crown, Medal, Gem, Users, Eye, BarChart, User as UserIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -77,7 +77,6 @@ export default function LeaderboardPage() {
                 
                 let attempts: AssessmentAttempt[] = [];
                 if (cohortData.assignedAssessmentId) {
-                    // Fetch attempts for each user individually
                     const attemptPromises = cohortData.candidateIds.map(async (userId) => {
                         const userAttemptsQuery = query(
                             collection(firestore, `users/${userId}/assessments`),
@@ -85,8 +84,11 @@ export default function LeaderboardPage() {
                         );
                         const attemptsSnapshot = await getDocs(userAttemptsQuery);
                         if (!attemptsSnapshot.empty) {
-                            // Assuming one attempt per user for a given assessment
-                            return { id: attemptsSnapshot.docs[0].id, ...attemptsSnapshot.docs[0].data() } as AssessmentAttempt;
+                             // Firestore does not guarantee order without an orderBy clause, 
+                             // so if there are multiple attempts, find the latest one.
+                             const userAttempts = attemptsSnapshot.docs.map(d => ({ ...d.data(), docId: d.id } as AssessmentAttempt));
+                             userAttempts.sort((a, b) => (b.submittedAt ?? 0) - (a.submittedAt ?? 0));
+                             return userAttempts[0];
                         }
                         return null;
                     });
@@ -107,19 +109,22 @@ export default function LeaderboardPage() {
 
         fetchInitialData();
         
-        // Lightweight listener for cohort document changes (like statuses)
         const cohortRef = doc(firestore, 'cohorts', cohortId);
         const unsubscribe = onSnapshot(cohortRef, (docSnap) => {
             if (docSnap.exists()) {
                 const updatedCohortData = { id: docSnap.id, ...docSnap.data() } as Cohort;
-                setCohort(updatedCohortData); // Update cohort state
+                setCohort(updatedCohortData);
                 
-                // Re-render leaderboard with new status, but reuse existing user/attempt data
                 setLeaderboard(prev => {
                      const users = prev.map(p => p.user);
                      const attempts = prev.map(p => p.attempt).filter(Boolean) as AssessmentAttempt[];
-                     constructLeaderboard(updatedCohortData, users, attempts);
-                     return [...prev]; // Return a new array to trigger re-render
+                     const newLeaderboard = users.map(user => {
+                        const userAttempt = attempts.find(a => a.userId === user.id);
+                        const status: ExtendedCandidateStatus = (updatedCohortData.statuses && updatedCohortData.statuses[user.id]) || (userAttempt ? 'Under Review' : 'Yet to Take');
+                        return { user, attempt: userAttempt, status };
+                    });
+                    newLeaderboard.sort((a, b) => (b.attempt?.finalScore ?? -1) - (a.attempt?.finalScore ?? -1));
+                    return newLeaderboard;
                 });
             }
         });
@@ -241,9 +246,24 @@ export default function LeaderboardPage() {
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <div className="flex gap-2 justify-end">
-                                            <Button variant="ghost" size="sm" onClick={() => router.push(`/admin/candidates/${entry.user.id}`)}>
-                                                <Eye className="mr-2 h-4 w-4"/> View
-                                            </Button>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="sm">
+                                                        <Eye className="mr-2 h-4 w-4"/> View
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent>
+                                                    <DropdownMenuItem onSelect={() => router.push(`/admin/candidates/${entry.user.id}`)}>
+                                                        <UserIcon className="mr-2 h-4 w-4" /> View Profile
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem 
+                                                        onSelect={() => router.push(`/dashboard/assessments/${entry.attempt?.docId}`)}
+                                                        disabled={!entry.attempt}
+                                                    >
+                                                        <BarChart className="mr-2 h-4 w-4" /> View Details
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
                                                     <Button variant="outline" size="sm">Change Status</Button>
