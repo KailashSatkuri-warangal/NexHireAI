@@ -37,6 +37,18 @@ type ActivityItem = {
     avatarFallback: string;
 }
 
+const getTimestamp = (timestamp: any): number => {
+    if (!timestamp) return 0;
+    if (timestamp.seconds) {
+        return timestamp.seconds * 1000;
+    }
+    if (typeof timestamp === 'number') {
+        return timestamp;
+    }
+    return 0;
+};
+
+
 export default function AdminHomePage() {
   const { user } = useAuth();
   const { firestore } = initializeFirebase();
@@ -76,8 +88,9 @@ export default function AdminHomePage() {
 
             usersSnapshot.docs.forEach(doc => {
                  const c = doc.data() as UserType;
-                 if (c.createdAt && typeof c.createdAt === 'object' && 'seconds' in c.createdAt) {
-                     const joinDate = new Date((c.createdAt as any).seconds * 1000);
+                 const createdAt = getTimestamp(c.createdAt);
+                 if (createdAt) {
+                     const joinDate = new Date(createdAt);
                      if (joinDate >= startOfMonth(subMonths(now, 5))) {
                         const month = format(joinDate, 'MMM');
                         if (monthlyData[month]) monthlyData[month].Candidates++;
@@ -96,24 +109,26 @@ export default function AdminHomePage() {
             ]);
 
             const candidateActivities: ActivityItem[] = newCandidatesSnap.docs
-                .filter(doc => doc.data().createdAt)
                 .map(doc => {
                     const candidate = doc.data() as UserType;
+                    const timestamp = getTimestamp(candidate.createdAt);
+                    if (!timestamp) return null;
                     return {
                         type: 'new_candidate',
                         text: `${candidate.name} signed up.`,
                         subtext: 'New candidate joined the talent pool.',
-                        timestamp: (candidate.createdAt as any).seconds * 1000,
+                        timestamp: timestamp,
                         icon: <UserCheck className="h-5 w-5" />,
                         avatarUrl: candidate.avatarUrl,
                         avatarFallback: candidate.name.charAt(0)
                     };
-                });
+                }).filter(Boolean) as ActivityItem[];
             
             const assessmentActivities: ActivityItem[] = [];
             for (const attemptDoc of recentAttemptsSnap.docs) {
                 const attempt = attemptDoc.data() as AssessmentAttempt;
-                if (!attempt.userId || !attempt.submittedAt) continue;
+                const timestamp = getTimestamp(attempt.submittedAt);
+                if (!attempt.userId || !timestamp) continue;
 
                 // Fetch the user data for this attempt
                 const userDoc = await getDoc(doc(firestore, 'users', attempt.userId));
@@ -128,7 +143,7 @@ export default function AdminHomePage() {
                     type: 'assessment_completed',
                     text: `${userData.name} completed the ${roleName} assessment.`,
                     subtext: `Scored ${Math.round(attempt.finalScore!)}%`,
-                    timestamp: attempt.submittedAt!,
+                    timestamp: timestamp,
                     icon: <NotebookPen className="h-5 w-5" />,
                     avatarUrl: userData.avatarUrl,
                     avatarFallback: userData.name.charAt(0)
@@ -280,3 +295,4 @@ export default function AdminHomePage() {
     </div>
   );
 }
+

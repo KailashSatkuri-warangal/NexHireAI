@@ -63,11 +63,11 @@ export default function AssessmentsPage() {
             let avgScore = 0;
             if (templateIds.length > 0) {
                 const attemptsGroupRef = collectionGroup(firestore, 'assessments');
-                const attemptsSnap = await getDocs(attemptsGroupRef);
+                const attemptsSnap = await getDocs(query(attemptsGroupRef, where('isTemplate', '==', true)));
                 
                 const officialAttempts = attemptsSnap.docs
                     .map(doc => doc.data() as AssessmentAttempt)
-                    .filter(attempt => attempt.rootAssessmentId && templateIds.includes(attempt.rootAssessmentId));
+                    .filter(attempt => attempt.templateId && templateIds.includes(attempt.templateId));
 
                 if (officialAttempts.length > 0) {
                     const totalScore = officialAttempts.reduce((acc, attempt) => acc + (attempt.finalScore || 0), 0);
