@@ -24,12 +24,16 @@ const itemVariants = {
     visible: { y: 0, opacity: 1 },
 };
 
-// Helper to reliably get a timestamp in milliseconds
+// A more robust helper to reliably get a timestamp in milliseconds from Firestore data
 const getTimestamp = (timestamp: any): number => {
     if (!timestamp) return 0;
-    if (typeof timestamp === 'number') return timestamp;
-    if (typeof timestamp === 'object' && timestamp.seconds) {
+    // Handle server-generated Timestamps (e.g., from serverTimestamp())
+    if (timestamp.seconds) {
         return timestamp.seconds * 1000;
+    }
+    // Handle client-generated numbers (e.g., from Date.now())
+    if (typeof timestamp === 'number') {
+        return timestamp;
     }
     return 0;
 };
@@ -71,7 +75,7 @@ export default function AnalyticsPage() {
                 
                 const newCandidatesCount = userSnap.docs.filter(doc => {
                     const data = doc.data() as User;
-                    const createdAt = getTimestamp(data.createdAt);
+                    const createdAt = getTimestamp(data.createdAt); // Use robust helper
                     return createdAt > oneMonthAgo;
                 }).length;
 
@@ -96,7 +100,7 @@ export default function AnalyticsPage() {
                 }
                 userSnap.docs.forEach(doc => {
                      const c = doc.data() as User;
-                     const createdAt = getTimestamp(c.createdAt);
+                     const createdAt = getTimestamp(c.createdAt); // Use robust helper
                      if (createdAt) {
                          const joinDate = new Date(createdAt);
                          if (joinDate >= startOfMonth(subMonths(now, 5))) {
@@ -126,9 +130,10 @@ export default function AnalyticsPage() {
                  const leaderboardUsers = await Promise.all(
                      topAttempts.map(async (attemptDoc) => {
                          const attemptData = attemptDoc.data() as AssessmentAttempt;
-                         if (!attemptData.userId) return null;
+                         const userId = attemptDoc.ref.parent.parent?.id; // Get userId from path
+                         if (!userId) return null;
                          
-                         const userDoc = await getDoc(doc(firestore, 'users', attemptData.userId));
+                         const userDoc = await getDoc(doc(firestore, 'users', userId));
                          if (!userDoc.exists()) return null;
                          const userData = userDoc.data() as User;
 
@@ -141,8 +146,8 @@ export default function AnalyticsPage() {
                             } catch {}
                          }
                          
-                         const submittedAt = getTimestamp(attemptData.submittedAt);
-                         const startedAt = getTimestamp(attemptData.startedAt);
+                         const submittedAt = getTimestamp(attemptData.submittedAt); // Use robust helper
+                         const startedAt = getTimestamp(attemptData.startedAt); // Use robust helper
 
                          return {
                              ...userData,
