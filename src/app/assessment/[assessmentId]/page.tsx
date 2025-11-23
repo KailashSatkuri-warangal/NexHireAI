@@ -141,7 +141,7 @@ const AssessmentRunner = () => {
           submittedAt: Date.now(),
           responses: finalResponses,
           questions: assessment.questions, // Pass full questions for scoring
-          rootAssessmentId: assessment.rootAssessmentId,
+          rootAssessmentId: assessment.isTemplate ? assessment.templateId : assessment.roleId,
       };
 
       try {
