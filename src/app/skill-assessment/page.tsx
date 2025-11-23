@@ -261,7 +261,7 @@ export default function SkillAssessmentPage() {
                             </CardHeader>
                             <CardContent className="flex-grow">
                                 <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
-                                    {role.subSkills?.slice(0, 3).map(skill => <li key={skill}>{skill}</li>)}
+                                    {role.subSkills?.map(skill => <li key={skill}>{skill}</li>)}
                                 </ul>
                             </CardContent>
                              <CardFooter>
