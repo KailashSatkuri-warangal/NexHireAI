@@ -43,17 +43,12 @@ const runCodeFlow = ai.defineFlow(
         const { output: aiResults } = await ai.generate({
           prompt: `You are a code execution engine simulator. Your task is to evaluate a single code submission against its test cases and return a structured JSON object containing the results.
 
-          **Special Instructions for Markdown:**
-          If the language is 'markdown' (case-insensitive), you must follow this procedure:
-          1. Treat the user's 'code' and the test case's 'expectedOutput' as Markdown.
-          2. Imagine rendering BOTH to HTML.
-          3. If the rendered HTML would be semantically identical (same structure, content, and meaning), you MUST set the status to "Passed". This is true even if the raw Markdown text uses different line breaks, list styles (* vs -), or spacing.
-          4. For the 'output' field in your JSON response for Markdown, return an EMPTY STRING. The calling code will handle populating this field.
-
           **General Instructions:**
           - For each test case, determine if the code's output matches the expected output.
+          - The match should be semantically equivalent. Minor differences in whitespace (extra spaces or newlines) that do not affect the code's function should be ignored. For example, a curl command split into multiple lines is the same as one on a single line.
           - Set the status to 'Passed', 'Failed', or 'Error'.
           - If the submission's code has syntax errors or would likely cause a runtime error, set the status for all its test cases to 'Error' and provide a brief error message in the 'output' field.
+          - The 'output' field in your JSON response should be the simulated output from running the user's code.
           - Simulate a realistic execution time and memory usage for each test case.
           
           Your response MUST be a valid JSON array of test case result objects. Do not include any extra text, commentary, or markdown formatting.
@@ -73,15 +68,10 @@ const runCodeFlow = ai.defineFlow(
             throw new Error("AI failed to return an output.");
         }
         
-        // Post-process to ensure user's raw markdown is preserved in the output
-        return aiResults.map((result, index) => {
-            const isMarkdown = input.language.toLowerCase().trim() === 'markdown';
-            return {
-                ...result,
-                output: isMarkdown ? input.code : result.output,
-                expectedOutput: input.testCases[index].expectedOutput,
-            };
-        });
+        return aiResults.map((result, index) => ({
+            ...result,
+            expectedOutput: input.testCases[index].expectedOutput,
+        }));
 
     } catch (error) {
         console.error("AI evaluation in runCodeFlow failed:", error);
