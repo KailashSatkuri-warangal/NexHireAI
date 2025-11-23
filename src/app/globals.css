@@ -110,3 +110,45 @@
     transform: rotateY(180deg);
   }
 }
+
+@media print {
+  body {
+    background: white;
+    color: black;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .printable-area {
+    padding: 0 !important;
+  }
+  .printable-area .bg-card\/60,
+  .printable-area .bg-card\/80,
+  .printable-area .bg-background\/50,
+  .printable-area .backdrop-blur-sm,
+  .printable-area .shadow-lg,
+  .printable-area .border-border\/20,
+  .printable-area .absolute {
+    background: none !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+  .printable-area .grid {
+    display: block !important;
+  }
+   .printable-area .lg\:col-span-3,
+  .printable-area .lg\:col-span-2,
+  .printable-area .md\:grid-cols-3 {
+    width: 100% !important;
+    grid-column: span 1 / span 1 !important;
+  }
+  .printable-area h1, .printable-area h2, .printable-area h3, .printable-area h4 {
+    color: black !important;
+  }
+   .printable-area .text-muted-foreground, .printable-area .font-semibold.text-muted-foreground {
+    color: #4a5568 !important;
+  }
+}
+
+    

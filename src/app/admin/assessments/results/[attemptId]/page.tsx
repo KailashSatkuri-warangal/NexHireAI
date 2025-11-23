@@ -163,17 +163,17 @@ export default function AdminAssessmentResultPage() {
     }
 
     return (
-         <div className="relative min-h-full w-full p-4 md:p-8">
+         <div className="relative min-h-full w-full p-4 md:p-8 printable-area">
             <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.1),rgba(255,255,255,0))]"></div>
             
-            <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex justify-between items-start mb-8">
+            <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex justify-between items-start mb-8 no-print">
                 <div>
                      <Button variant="ghost" onClick={() => router.back()} className="mb-2"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Leaderboard</Button>
                     <h1 className="text-4xl font-bold">{currentAttempt.roleName} - Results</h1>
                      <CardDescription>Viewing result for {currentAttempt.userId}</CardDescription>
                 </div>
                 <div className="flex flex-col items-end gap-2">
-                    <Button variant="outline"><Download className="mr-2 h-4 w-4" /> Download Report (PDF)</Button>
+                    <Button variant="outline" onClick={() => window.print()}><Download className="mr-2 h-4 w-4" /> Download Report (PDF)</Button>
                 </div>
             </motion.div>
 
@@ -275,3 +275,6 @@ const InfoCard = ({ title, value }: { title: string, value: string }) => (
     </Card>
 )
 
+
+
+    
