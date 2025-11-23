@@ -1,4 +1,5 @@
 
+
 export type RoleType = 'candidate' | 'recruiter' | 'admin';
 
 export interface Role {
@@ -137,6 +138,9 @@ export interface CandidateSpecificProfile {
     experiences?: WorkExperience[];
     projects?: Project[];
     achievements?: Achievement[];
+    // New fields for persisted AI results
+    skillMatrix?: SkillMatrixResult;
+    learningPlan?: LearningResource[];
 }
 
 export interface RecruiterSpecificProfile {
@@ -209,4 +213,30 @@ export interface Notification {
     link?: string;
     isRead: boolean;
     createdAt: number;
+}
+
+// AI-specific result types
+export interface SkillMatrix {
+    skill: string;
+    proficiency: number;
+    description: string;
+}
+
+export interface LearningPlanItem {
+    task: string;
+    category: string;
+    estHours: number;
+}
+
+export interface SkillMatrixResult {
+    skillMatrix: SkillMatrix[];
+    learningPlan: LearningPlanItem[];
+}
+
+export interface LearningResource {
+    title: string;
+    type: 'article' | 'video';
+    url: string;
+    description: string;
+    skill: string;
 }

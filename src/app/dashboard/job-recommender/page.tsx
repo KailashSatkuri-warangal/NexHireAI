@@ -1,10 +1,9 @@
-
 'use client';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, Bot, Sparkles, AlertTriangle } from 'lucide-react';
+import { Loader2, Bot, Sparkles, AlertTriangle, RotateCcw } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { analyzeResume } from '@/ai/flows/analyze-resume-flow';
@@ -12,11 +11,14 @@ import type { AnalysisSummary } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { doc, updateDoc } from 'firebase/firestore';
+import { initializeFirebase } from '@/firebase';
 
 export default function AIJobRecommenderPage() {
-    const { user, isLoading: authLoading, profileData, isProfileLoading } = useAuth();
+    const { user, isLoading: authLoading, profileData, isProfileLoading, refreshUser } = useAuth();
     const router = useRouter();
     const { toast } = useToast();
+    const { firestore } = initializeFirebase();
 
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisResult, setAnalysisResult] = useState<AnalysisSummary | null>(null);
@@ -26,6 +28,12 @@ export default function AIJobRecommenderPage() {
             router.push('/login');
         }
     }, [user, authLoading, router]);
+
+    useEffect(() => {
+        if (profileData?.analysis?.summary) {
+            setAnalysisResult(profileData.analysis.summary);
+        }
+    }, [profileData]);
 
     const handleRunAnalysis = async () => {
         if (!profileData) {
@@ -61,6 +69,16 @@ export default function AIJobRecommenderPage() {
                 bio: candidateSpecific.bio,
                 experienceLevel: candidateSpecific.experienceLevel || 'Fresher',
             });
+            
+            // Save result to Firestore
+            if (firestore && user) {
+                const userDocRef = doc(firestore, 'users', user.id);
+                await updateDoc(userDocRef, {
+                    'analysis.summary': result,
+                });
+                await refreshUser(); // Refresh user data in context
+            }
+
             setAnalysisResult(result);
             toast({
                 title: 'Analysis Complete!',
@@ -92,13 +110,22 @@ export default function AIJobRecommenderPage() {
         <div className="relative min-h-full w-full p-4 md:p-8">
             <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.1),rgba(255,255,255,0))]"></div>
             
-            <motion.h1
+            <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="text-4xl font-bold mb-8 flex items-center gap-3"
+                className="flex justify-between items-center mb-8"
             >
-                <Bot /> AI Job Recommender
-            </motion.h1>
+                <h1 className="text-4xl font-bold flex items-center gap-3">
+                    <Bot /> AI Job Recommender
+                </h1>
+                {analysisResult && (
+                    <Button variant="outline" onClick={handleRunAnalysis} disabled={isAnalyzing}>
+                         <RotateCcw className={`mr-2 h-4 w-4 ${isAnalyzing ? 'animate-spin' : ''}`} />
+                        Re-generate
+                    </Button>
+                )}
+            </motion.div>
+
 
             <AnimatePresence mode="wait">
                 {isAnalyzing ? (

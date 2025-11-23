@@ -3,26 +3,22 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, BookOpen, Lightbulb, Youtube, Newspaper, CheckCircle } from 'lucide-react';
+import { Loader2, BookOpen, Lightbulb, Youtube, Newspaper, RotateCcw } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { generateLearningPlan } from '@/ai/flows/generate-learning-plan-flow';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-
-interface LearningResource {
-    title: string;
-    type: 'article' | 'video';
-    url: string;
-    description: string;
-    skill: string;
-}
+import type { LearningResource } from '@/lib/types';
+import { doc, updateDoc } from 'firebase/firestore';
+import { initializeFirebase } from '@/firebase';
 
 export default function AILearningPage() {
-    const { user, isLoading: authLoading, profileData, isProfileLoading } = useAuth();
+    const { user, isLoading: authLoading, profileData, isProfileLoading, refreshUser } = useAuth();
     const router = useRouter();
     const { toast } = useToast();
+    const { firestore } = initializeFirebase();
 
     const [isGenerating, setIsGenerating] = useState(false);
     const [resources, setResources] = useState<LearningResource[]>([]);
@@ -32,6 +28,12 @@ export default function AILearningPage() {
             router.push('/login');
         }
     }, [user, authLoading, router]);
+
+    useEffect(() => {
+        if (profileData?.candidateSpecific?.learningPlan) {
+            setResources(profileData.candidateSpecific.learningPlan);
+        }
+    }, [profileData]);
 
     const handleGeneratePlan = async () => {
         if (!profileData?.candidateSpecific?.skills?.length) {
@@ -55,6 +57,15 @@ export default function AILearningPage() {
                 skills: profileData.candidateSpecific.skills,
                 existingKnowledge: profileData.candidateSpecific.bio || '',
             });
+
+            if (user && firestore) {
+                const userDocRef = doc(firestore, 'users', user.id);
+                await updateDoc(userDocRef, {
+                    'candidateSpecific.learningPlan': result.resources
+                });
+                await refreshUser();
+            }
+
             setResources(result.resources);
             toast({
                 title: 'Learning Plan Ready!',
@@ -86,13 +97,21 @@ export default function AILearningPage() {
         <div className="relative min-h-full w-full p-4 md:p-8">
             <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.1),rgba(255,255,255,0))]"></div>
             
-            <motion.h1
+            <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="text-4xl font-bold mb-8 flex items-center gap-3"
+                className="flex justify-between items-center mb-8"
             >
-                <BookOpen /> AI Learning Hub
-            </motion.h1>
+                <h1 className="text-4xl font-bold flex items-center gap-3">
+                    <BookOpen /> AI Learning Hub
+                </h1>
+                {resources.length > 0 && (
+                    <Button variant="outline" onClick={handleGeneratePlan} disabled={isGenerating}>
+                        <RotateCcw className={`mr-2 h-4 w-4 ${isGenerating ? 'animate-spin' : ''}`} />
+                        Re-generate
+                    </Button>
+                )}
+            </motion.div>
 
             <AnimatePresence mode="wait">
                 {isGenerating ? (

@@ -1,47 +1,40 @@
-
 'use client';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, Star, Lightbulb } from 'lucide-react';
+import { Loader2, Star, Lightbulb, RotateCcw } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { generateSkillMatrix } from '@/ai/flows/generate-skill-matrix-flow';
 import { Badge } from '@/components/ui/badge';
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, Radar, Tooltip } from 'recharts';
+import type { SkillMatrixResult } from '@/lib/types';
+import { doc, updateDoc } from 'firebase/firestore';
+import { initializeFirebase } from '@/firebase';
 
-interface SkillMatrix {
-    skill: string;
-    proficiency: number;
-    description: string;
-}
-
-interface LearningPlanItem {
-    task: string;
-    category: string;
-    estHours: number;
-}
-
-interface SkillMasterResult {
-    skillMatrix: SkillMatrix[];
-    learningPlan: LearningPlanItem[];
-}
 
 export default function AISkillMasterPage() {
-    const { user, isLoading: authLoading, profileData, isProfileLoading } = useAuth();
+    const { user, isLoading: authLoading, profileData, isProfileLoading, refreshUser } = useAuth();
     const router = useRouter();
     const { toast } = useToast();
+    const { firestore } = initializeFirebase();
 
     const [isGenerating, setIsGenerating] = useState(false);
-    const [result, setResult] = useState<SkillMasterResult | null>(null);
+    const [result, setResult] = useState<SkillMatrixResult | null>(null);
 
     useEffect(() => {
         if (!authLoading && !user) {
             router.push('/login');
         }
     }, [user, authLoading, router]);
+
+    useEffect(() => {
+        if (profileData?.candidateSpecific?.skillMatrix) {
+            setResult(profileData.candidateSpecific.skillMatrix);
+        }
+    }, [profileData]);
 
     const handleGenerate = async () => {
         if (!profileData?.candidateSpecific?.skills?.length) {
@@ -65,6 +58,15 @@ export default function AISkillMasterPage() {
                 skills: profileData.candidateSpecific.skills,
                 bio: profileData.candidateSpecific.bio || '',
             });
+            
+            if (user && firestore) {
+                const userDocRef = doc(firestore, 'users', user.id);
+                await updateDoc(userDocRef, {
+                    'candidateSpecific.skillMatrix': res
+                });
+                await refreshUser();
+            }
+
             setResult(res);
             toast({
                 title: 'Skill Matrix Generated!',
@@ -102,13 +104,21 @@ export default function AISkillMasterPage() {
         <div className="relative min-h-full w-full p-4 md:p-8">
             <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.1),rgba(255,255,255,0))]"></div>
             
-            <motion.h1
+            <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="text-4xl font-bold mb-8 flex items-center gap-3"
+                className="flex justify-between items-center mb-8"
             >
-                <Star /> AI Skill Master
-            </motion.h1>
+                <h1 className="text-4xl font-bold flex items-center gap-3">
+                    <Star /> AI Skill Master
+                </h1>
+                {result && (
+                     <Button variant="outline" onClick={handleGenerate} disabled={isGenerating}>
+                         <RotateCcw className={`mr-2 h-4 w-4 ${isGenerating ? 'animate-spin' : ''}`} />
+                        Re-generate
+                    </Button>
+                )}
+            </motion.div>
 
             <AnimatePresence mode="wait">
                 {isGenerating ? (
