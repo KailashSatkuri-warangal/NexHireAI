@@ -70,25 +70,30 @@ export default function LeaderboardPage() {
                     return;
                 }
 
-                // Fetch all users and attempts in parallel
+                // Fetch all users in the cohort
                 const usersQuery = query(collection(firestore, 'users'), where('__name__', 'in', cohortData.candidateIds));
-                
-                let attemptsQuery;
-                if (cohortData.assignedAssessmentId) {
-                    attemptsQuery = query(
-                        collectionGroup(firestore, 'assessments'),
-                        where('rootAssessmentId', '==', cohortData.assignedAssessmentId),
-                        where('userId', 'in', cohortData.candidateIds)
-                    );
-                }
-
-                const [usersSnap, attemptsSnap] = await Promise.all([
-                    getDocs(usersQuery),
-                    attemptsQuery ? getDocs(attemptsQuery) : Promise.resolve(null)
-                ]);
-                
+                const usersSnap = await getDocs(usersQuery);
                 const users = usersSnap.docs.map(d => ({ id: d.id, ...d.data() } as User));
-                const attempts = attemptsSnap ? attemptsSnap.docs.map(d => ({ id: d.id, ...d.data() } as AssessmentAttempt)) : [];
+                
+                let attempts: AssessmentAttempt[] = [];
+                if (cohortData.assignedAssessmentId) {
+                    // Fetch attempts for each user individually
+                    const attemptPromises = cohortData.candidateIds.map(async (userId) => {
+                        const userAttemptsQuery = query(
+                            collection(firestore, `users/${userId}/assessments`),
+                            where('rootAssessmentId', '==', cohortData.assignedAssessmentId)
+                        );
+                        const attemptsSnapshot = await getDocs(userAttemptsQuery);
+                        if (!attemptsSnapshot.empty) {
+                            // Assuming one attempt per user for a given assessment
+                            return { id: attemptsSnapshot.docs[0].id, ...attemptsSnapshot.docs[0].data() } as AssessmentAttempt;
+                        }
+                        return null;
+                    });
+                    
+                    const settledAttempts = await Promise.all(attemptPromises);
+                    attempts = settledAttempts.filter(Boolean) as AssessmentAttempt[];
+                }
 
                 constructLeaderboard(cohortData, users, attempts);
 
@@ -101,19 +106,20 @@ export default function LeaderboardPage() {
         };
 
         fetchInitialData();
-
-        // Separate, lightweight listener just for cohort document changes (like statuses)
+        
+        // Lightweight listener for cohort document changes (like statuses)
         const cohortRef = doc(firestore, 'cohorts', cohortId);
         const unsubscribe = onSnapshot(cohortRef, (docSnap) => {
             if (docSnap.exists()) {
                 const updatedCohortData = { id: docSnap.id, ...docSnap.data() } as Cohort;
                 setCohort(updatedCohortData); // Update cohort state
-                // Reconstruct leaderboard with new cohort data but existing user/attempt data
+                
+                // Re-render leaderboard with new status, but reuse existing user/attempt data
                 setLeaderboard(prev => {
                      const users = prev.map(p => p.user);
                      const attempts = prev.map(p => p.attempt).filter(Boolean) as AssessmentAttempt[];
                      constructLeaderboard(updatedCohortData, users, attempts);
-                     return prev; // No immediate change needed, constructLeaderboard handles it
+                     return [...prev]; // Return a new array to trigger re-render
                 });
             }
         });
