@@ -11,9 +11,9 @@
     <br />
     <a href="https://nex-hire-ai.vercel.app/">View Demo</a>
     ·
-    <a href="https://github.com/RohithMacharla11/NexHireAI/issues">Report Bug</a>
+    <a href="https://github.com/KailashSatkuri-warangal/NexHireAI/issues">Report Bug</a>
     ·
-    <a href="https://github.com/RohithMacharla11/NexHireAI/issues">Request Feature</a>
+    <a href="https://github.com/KailashSatkuri-warangal/NexHireAI/issues">Request Feature</a>
   </p>
 </div>
 
@@ -150,11 +150,11 @@ To get a local copy up and running, follow these simple steps.
 ## 👥 Meet the Team
 
 This project is the result of the hard work and collaboration of a dedicated team:
-
+*   **Satukuri Kailash**
 *   **Macharla Rohith**
 *   **Sanga Akhilananda Teja**
 *   **Kunduru Sai Sruthi Reddy**
-*   **Satukuri Kailash**
+
 
 ---
 

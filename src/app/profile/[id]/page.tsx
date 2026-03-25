@@ -52,16 +52,16 @@ export default function ProfilePage() {
         if (docSnap.exists()) {
           data = { id: docSnap.id, ...docSnap.data() } as UserType;
         } else {
-           if (!isOwnProfile) {
-                toast({ title: "User not found", variant: "destructive" });
-                router.push('/admin');
-                return;
-           }
+          if (!isOwnProfile) {
+            toast({ title: "User not found", variant: "destructive" });
+            router.push('/admin');
+            return;
+          }
           data = {
             id: currentUser!.id,
             email: currentUser!.email,
             name: currentUser!.name || "New User",
-            role: 'candidate', 
+            role: 'candidate',
           };
           await setDoc(userDocRef, data);
         }
@@ -69,20 +69,20 @@ export default function ProfilePage() {
 
         // Fetch assessment history ONLY if the user is a candidate
         if (data.role === 'candidate') {
-            const historyQuery = query(collection(firestore, 'users', profileId as string, 'assessments'), orderBy('submittedAt', 'desc'));
-            const historySnapshot = await getDocs(historyQuery);
-            const historyData = await Promise.all(historySnapshot.docs.map(async (docSnapshot) => {
-                const attempt = { id: docSnapshot.id, ...docSnapshot.data() } as AssessmentAttempt;
-                 if (!attempt.roleId) return null; // Skip if roleId is missing
-                const roleDocRef = doc(firestore, 'roles', attempt.roleId);
-                const roleDoc = await getDoc(roleDocRef);
-                const roleName = roleDoc.exists() ? (roleDoc.data() as Role).name : 'Unknown Role';
-                return { ...attempt, roleName };
-            }));
-            setAssessmentHistory(historyData.filter(Boolean) as (AssessmentAttempt & { roleName?: string })[]);
+          const historyQuery = query(collection(firestore, 'users', profileId as string, 'assessments'), orderBy('submittedAt', 'desc'));
+          const historySnapshot = await getDocs(historyQuery);
+          const historyData = await Promise.all(historySnapshot.docs.map(async (docSnapshot) => {
+            const attempt = { id: docSnapshot.id, ...docSnapshot.data() } as AssessmentAttempt;
+            if (!attempt.roleId) return null; // Skip if roleId is missing
+            const roleDocRef = doc(firestore, 'roles', attempt.roleId);
+            const roleDoc = await getDoc(roleDocRef);
+            const roleName = roleDoc.exists() ? (roleDoc.data() as Role).name : 'Unknown Role';
+            return { ...attempt, roleName };
+          }));
+          setAssessmentHistory(historyData.filter(Boolean) as (AssessmentAttempt & { roleName?: string })[]);
         } else {
-            // For non-candidates, ensure history is empty
-            setAssessmentHistory([]);
+          // For non-candidates, ensure history is empty
+          setAssessmentHistory([]);
         }
 
       } catch (error) {
@@ -97,79 +97,79 @@ export default function ProfilePage() {
   useEffect(() => {
     fetchProfileAndHistory();
   }, [fetchProfileAndHistory]);
-  
+
   const handleProfileUpdate = async (formData: Partial<UserType>) => {
     if (!profileId || !profileData) return;
 
     // A deep merge function that handles nested objects without overwriting them
     const deepMerge = (target: any, source: any) => {
-        for (const key in source) {
-            if (source[key] instanceof Object && key in target) {
-                Object.assign(source[key], deepMerge(target[key], source[key]))
-            }
+      for (const key in source) {
+        if (source[key] instanceof Object && key in target) {
+          Object.assign(source[key], deepMerge(target[key], source[key]))
         }
-        // Join `target` and `source` properties
-        Object.assign(target || {}, source)
-        return target
+      }
+      // Join `target` and `source` properties
+      Object.assign(target || {}, source)
+      return target
     }
 
     const updatedData = deepMerge({ ...profileData }, formData);
-    
-    try {
-        const userDocRef = doc(firestore, 'users', profileId as string);
-        await setDoc(userDocRef, updatedData, { merge: true });
-        
-        setProfileData(updatedData);
-        if(isOwnProfile) {
-            await refreshUser(); 
-        }
 
-        toast({ title: "Success", description: "Profile updated successfully!" });
-        handleViewChange('profile');
+    try {
+      const userDocRef = doc(firestore, 'users', profileId as string);
+      await setDoc(userDocRef, updatedData, { merge: true });
+
+      setProfileData(updatedData);
+      if (isOwnProfile) {
+        await refreshUser();
+      }
+
+      toast({ title: "Success", description: "Profile updated successfully!" });
+      handleViewChange('profile');
     } catch (error) {
-        console.error("Error updating profile:", error);
-        toast({ title: "Error", description: "Could not update profile.", variant: "destructive" });
+      console.error("Error updating profile:", error);
+      toast({ title: "Error", description: "Could not update profile.", variant: "destructive" });
     }
   };
 
   const runAnalysis = async () => {
-      if (!profileData) return;
-      
-      const analysisInput = {
-        skills: profileData.candidateSpecific?.skills || [],
-        bio: profileData.candidateSpecific?.bio || '',
-        experienceLevel: profileData.candidateSpecific?.experienceLevel || 'Fresher'
-      }
+    if (!profileData) return;
 
-      if(analysisInput.skills.length === 0 && !analysisInput.bio) {
-        toast({
-          title: "Not enough data",
-          description: "Please add some skills and a bio to run the analysis.",
-          variant: "destructive"
-        });
-        return;
-      }
-      
-      try {
-        toast({ title: "Analyzing Profile...", description: "This may take a moment." });
-        const analysisResult: AnalysisSummary = await analyzeResume(analysisInput);
-        
-        const userDocRef = doc(firestore, 'users', profileId as string);
-        await updateDoc(userDocRef, {
-            'analysis.summary': analysisResult,
-        });
-        
-        setProfileData(prev => prev ? ({
-          ...prev,
-          analysis: { summary: analysisResult }
-        }) : null);
+    const analysisInput = {
+      skills: profileData.candidateSpecific?.skills || [],
+      bio: profileData.candidateSpecific?.bio || '',
+      experienceLevel: profileData.candidateSpecific?.experienceLevel || 'Fresher'
+    }
 
-        handleViewChange('analysis');
+    if (analysisInput.skills.length === 0 && !analysisInput.bio) {
+      toast({
+        title: "Not enough data",
+        description: "Please add some skills and a bio to run the analysis.",
+        variant: "destructive"
+      });
+      return;
+    }
 
-      } catch(error) {
-         console.error("Error running analysis:", error);
-         toast({ title: "Analysis Failed", description: (error as Error).message || "An unknown error occurred.", variant: "destructive" });
-      }
+    try {
+      toast({ title: "Analyzing Profile...", description: "This may take a moment." });
+      const analysisResult: AnalysisSummary = await analyzeResume(analysisInput);
+
+      const userDocRef = doc(firestore, 'users', profileId as string);
+      await updateDoc(userDocRef, {
+        'analysis.summary': analysisResult,
+      });
+
+      setProfileData(prev => prev ? ({
+        ...prev,
+        analysis: { summary: analysisResult }
+      }) : null);
+
+      handleViewChange('analysis');
+
+    } catch (error) {
+      console.error("Error running analysis:", error);
+      toast({ title: "Analysis Failed", description: (error as Error).message || "An unknown error occurred.", variant: "destructive" });
+    }
   }
 
   const handleViewChange = (newView: View) => {
@@ -189,63 +189,63 @@ export default function ProfilePage() {
   if (isLoading || authLoading || !profileData) {
     return <ProfileSkeleton />;
   }
-  
+
   const hasAnalysis = !!profileData.analysis?.summary;
 
   return (
     <div className="relative min-h-full w-full p-4 md:p-8">
-        <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.1),rgba(255,255,255,0))]"></div>
-        <div className="w-full h-full flex items-center justify-center">
-            <motion.div
-                className="w-full max-w-4xl h-[85vh] preserve-3d"
-                initial={false}
-                animate={{ rotateY: rotation }}
-                transition={{ duration: 0.7, ease: 'easeInOut' }}
-                style={{ perspective: '1000px' }}
-            >
-                {/* Profile Face */}
-                <div className="absolute w-full h-full backface-hidden" style={{ display: view === 'profile' ? 'block' : 'none' }}>
-                    <ProfileCard 
-                        profileData={profileData} 
-                        onRunAnalysis={runAnalysis}
-                        onEdit={() => handleViewChange('edit')}
-                        onViewInsights={hasAnalysis ? () => handleViewChange('analysis') : undefined}
-                        onAvatarUpload={(file) => handleProfileUpdate({ avatarUrl: URL.createObjectURL(file)})}
-                        isOwnProfile={isOwnProfile}
-                    />
-                </div>
+      <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.1),rgba(255,255,255,0))]"></div>
+      <div className="w-full h-full flex items-center justify-center">
+        <motion.div
+          className="w-full max-w-4xl h-[85vh] preserve-3d"
+          initial={false}
+          animate={{ rotateY: rotation }}
+          transition={{ duration: 0.7, ease: 'easeInOut' }}
+          style={{ perspective: '1000px' }}
+        >
+          {/* Profile Face */}
+          <div className="absolute w-full h-full backface-hidden" style={{ display: view === 'profile' ? 'block' : 'none' }}>
+            <ProfileCard
+              profileData={profileData}
+              onRunAnalysis={runAnalysis}
+              onEdit={() => handleViewChange('edit')}
+              onViewInsights={hasAnalysis ? () => handleViewChange('analysis') : undefined}
+              onAvatarUpload={(file) => handleProfileUpdate({ avatarUrl: URL.createObjectURL(file) })}
+              isOwnProfile={isOwnProfile}
+            />
+          </div>
 
-                {/* Edit Face */}
-                <div className="absolute w-full h-full backface-hidden rotate-y-180" style={{ display: view === 'edit' ? 'block' : 'none' }}>
-                        <div className="w-full h-full rounded-3xl border border-white/10 bg-card/80 p-6 shadow-2xl backdrop-blur-xl dark:border-white/20 dark:bg-black/40 flex flex-col">
-                        <div className="flex-grow max-h-full overflow-y-auto pr-4">
-                            <EditProfileForm 
-                                profileData={profileData} 
-                                onSave={handleProfileUpdate} 
-                                onCancel={() => handleViewChange('profile')} 
-                                isOwnProfile={isOwnProfile}
-                            />
-                        </div>
-                    </div>
-                </div>
+          {/* Edit Face */}
+          <div className="absolute w-full h-full backface-hidden rotate-y-180" style={{ display: view === 'edit' ? 'block' : 'none' }}>
+            <div className="w-full h-full rounded-3xl border border-white/10 bg-card/80 p-6 shadow-2xl backdrop-blur-xl dark:border-white/20 dark:bg-black/40 flex flex-col">
+              <div className="flex-grow max-h-full overflow-y-auto pr-4">
+                <EditProfileForm
+                  profileData={profileData}
+                  onSave={handleProfileUpdate}
+                  onCancel={() => handleViewChange('profile')}
+                  isOwnProfile={isOwnProfile}
+                />
+              </div>
+            </div>
+          </div>
 
-                {/* Analysis Face */}
-                <div className="absolute w-full h-full backface-hidden" style={{ transform: 'rotateY(-180deg)', display: view === 'analysis' ? 'block' : 'none' }}>
-                    <PersonalUnderstanding 
-                        analysis={profileData.analysis?.summary}
-                        onFlip={() => handleViewChange('profile')}
-                    />
-                </div>
-            </motion.div>
-        </div>
+          {/* Analysis Face */}
+          <div className="absolute w-full h-full backface-hidden" style={{ transform: 'rotateY(-180deg)', display: view === 'analysis' ? 'block' : 'none' }}>
+            <PersonalUnderstanding
+              analysis={profileData.analysis?.summary}
+              onFlip={() => handleViewChange('profile')}
+            />
+          </div>
+        </motion.div>
+      </div>
     </div>
   );
 }
 
 const ProfileSkeleton = () => (
-    <div className="relative h-full w-full flex items-center justify-center p-4">
-        <div className="w-full max-w-4xl">
-            <Skeleton className="h-[85vh] w-full rounded-3xl" />
-        </div>
+  <div className="relative h-full w-full flex items-center justify-center p-4">
+    <div className="w-full max-w-4xl">
+      <Skeleton className="h-[85vh] w-full rounded-3xl" />
     </div>
+  </div>
 );

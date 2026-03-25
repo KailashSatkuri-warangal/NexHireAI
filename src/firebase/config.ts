@@ -1,12 +1,11 @@
-
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 export const firebaseConfig = {
-  apiKey: "AIzaSyAHQ5iV8fS1ImbZQVclfI6aAR-Ty0nX0f0",
-  authDomain: "nexhireai-auth-main.firebaseapp.com",
-  projectId: "nexhireai-auth-main",
-  storageBucket: "nexhireai-auth-main.appspot.com",
-  messagingSenderId: "336350318429",
-  appId: "1:336350318429:web:ac112ce3dc298259b222b4",
-  measurementId: "G-H3MH9QLNZV"
+  apiKey: "AIzaSyDPlr_AlPSgcFiN7OIlSxoGJwg2QktoPY8",
+  authDomain: "nexhire-c749a.firebaseapp.com",
+  projectId: "nexhire-c749a",
+  storageBucket: "nexhire-c749a.firebasestorage.app",
+  messagingSenderId: "124973160544",
+  appId: "1:124973160544:web:a100cf906ab00c72058b05",
+  measurementId: "G-S3YN19SJF6"
 };

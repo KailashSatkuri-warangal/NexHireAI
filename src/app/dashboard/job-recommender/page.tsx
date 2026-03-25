@@ -38,7 +38,7 @@ export default function AIJobRecommenderPage() {
 
     const handleRunAnalysis = async () => {
         if (!profileData) {
-             toast({
+            toast({
                 title: 'Profile Incomplete',
                 description: 'Please complete your profile to get AI recommendations.',
                 variant: 'destructive',
@@ -65,12 +65,20 @@ export default function AIJobRecommenderPage() {
         });
 
         try {
-            const result = await analyzeResume({
+            const rawResult = await analyzeResume({
                 skills: candidateSpecific.skills,
                 bio: candidateSpecific.bio,
                 experienceLevel: candidateSpecific.experienceLevel || 'Fresher',
             });
-            
+
+            const result: AnalysisSummary = {
+                topRoles: rawResult.topRoles,   // ✅ KEEP role + score
+                jobReadiness: rawResult.readinessScore,
+                gapAnalysis: rawResult.gapAnalysis,
+                suggestedLearning: rawResult.suggestedLearning,
+                resumeHealth: rawResult.resumeHealth
+            };
+
             // Save result to Firestore
             if (firestore && user) {
                 const userDocRef = doc(firestore, 'users', user.id);
@@ -96,21 +104,21 @@ export default function AIJobRecommenderPage() {
             setIsAnalyzing(false);
         }
     };
-    
+
     const isLoading = authLoading || isProfileLoading;
 
     if (isLoading) {
         return (
-          <div className="flex items-center justify-center h-full w-full">
-            <Loader2 className="h-8 w-8 animate-spin" />
-          </div>
+            <div className="flex items-center justify-center h-full w-full">
+                <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
         );
     }
-    
+
     return (
         <div className="relative min-h-full w-full p-4 md:p-8">
             <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.1),rgba(255,255,255,0))]"></div>
-            
+
             <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -121,7 +129,7 @@ export default function AIJobRecommenderPage() {
                 </h1>
                 {analysisResult && (
                     <Button variant="outline" onClick={handleRunAnalysis} disabled={isAnalyzing}>
-                         <RotateCcw className={`mr-2 h-4 w-4 ${isAnalyzing ? 'animate-spin' : ''}`} />
+                        <RotateCcw className={`mr-2 h-4 w-4 ${isAnalyzing ? 'animate-spin' : ''}`} />
                         Re-generate
                     </Button>
                 )}
@@ -130,7 +138,7 @@ export default function AIJobRecommenderPage() {
 
             <AnimatePresence mode="wait">
                 {isAnalyzing ? (
-                     <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                         <Card className="max-w-2xl mx-auto bg-card/60 backdrop-blur-sm border-border/20 shadow-lg text-center p-8">
                             <CardContent className="flex flex-col items-center justify-center gap-4">
                                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -140,14 +148,14 @@ export default function AIJobRecommenderPage() {
                         </Card>
                     </motion.div>
                 ) : analysisResult ? (
-                    <motion.div 
+                    <motion.div
                         key="results"
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start"
                     >
                         {analysisResult.topRoles.map((role, index) => (
-                             <motion.div
+                            <motion.div
                                 key={role.role}
                                 initial={{ opacity: 0, scale: 0.9 }}
                                 animate={{ opacity: 1, scale: 1 }}
@@ -167,15 +175,15 @@ export default function AIJobRecommenderPage() {
                                         <p className="text-sm text-muted-foreground mb-3">Based on your skills in React, Next.js, and AI development.</p>
                                     </CardContent>
                                     <CardFooter className="flex-col items-start gap-2">
-                                         <Button className="w-full">View Similar Jobs</Button>
-                                         <Button variant="outline" className="w-full">Improve Match Score</Button>
+                                        <Button className="w-full">View Similar Jobs</Button>
+                                        <Button variant="outline" className="w-full">Improve Match Score</Button>
                                     </CardFooter>
                                 </Card>
                             </motion.div>
                         ))}
                     </motion.div>
                 ) : (
-                     <motion.div key="initial" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <motion.div key="initial" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                         <Card className="max-w-2xl mx-auto bg-card/60 backdrop-blur-sm border-border/20 shadow-lg text-center p-8">
                             <CardHeader>
                                 <CardTitle className="text-2xl flex items-center justify-center gap-2">
